@@ -42,6 +42,7 @@ int main()
 	// ... in-lab ...
 	// compute the Fourier transform
 	// the function is already provided in fourier.cpp
+	DFT(slice_data, Xf);
 
 	// compute the magnitude of each frequency bin
 	// note: we are concerned only with the magnitude of the frequency bin
@@ -50,6 +51,7 @@ int main()
 	// ... in-lab ...
 	// compute the magnitude of each frequency bin
 	// the function is already provided in fourier.cpp
+	computeVectorMagnitude(Xf, Xmag);
 
 	// log the frequency magnitude vector
 	vector_index.clear();
@@ -62,6 +64,10 @@ int main()
 	//
 	// ... complete as part of the take-home ...
 	//
+	std::vector<float> freq;
+	std::vector<float> psd_est;
+	estimatePSD(bin_data, NFFT, 256, freq, psd_est);
+	logVector("demod_psd", freq, psd_est); // log only positive freq
 
 	// if you wish to write some binary files, see below example
 	//
