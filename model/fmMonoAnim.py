@@ -29,6 +29,8 @@ rf_decim = 10
 audio_Fs = 48e3
 audio_decim = 5
 # add other settings for audio, like filter taps, ...
+audio_taps = 101
+audio_Fc = 16e3
 
 # we need a dummy init for animate to avoid calling
 # the main update function (animate_update) twice at the start
@@ -71,20 +73,24 @@ def animate_update(block_count, iq_data, block_size, rf_coeff, audio_coeff):
 					'Demodulated FM (block ' + str(block_count) + ')')
 
 	# extract the mono audio data through filtering
-	# audio_filt = ... change as needed
+	audio_filt = signal.lfilter(audio_coeff, 1.0, fm_demod)
 
 	# plot PSD after extracting mono audio
-	# ... change as needed
+	ax1.clear()
+	fmPlotPSD(ax1, audio_filt, (rf_Fs/rf_decim)/1e3, subfig_height[1], \
+					'PSD Before Downsampling (block ' + str(block_count) + ')')
 
 	# downsample audio data
-	# audio_block =  ... change as needed
+	audio_block =  audio_filt[::audio_decim]
 
 	# plot PSD after downsampling mono audio
-	# ... change as needed
+	ax2.clear()
+	fmPlotPSD(ax2, audio_block, (rf_Fs/rf_decim)/1e3, subfig_height[2], \
+					'PSD After Downsampling (block ' + str(block_count) + ')')
 
 	# concatenate the most recently processed audio_block
 	# to the previous blocks stored already in audio_data
-	# audio_data = np.concatenate((audio_data, audio_block))
+	audio_data = np.concatenate((audio_data, audio_block))
 
 if __name__ == "__main__":
 
@@ -101,7 +107,7 @@ if __name__ == "__main__":
 	rf_coeff = signal.firwin(rf_taps, rf_Fc/(rf_Fs/2), window=('hann'))
 
 	# coefficients for the filter to extract mono audio
-	audio_coeff = np.array([]) # to be changed by you
+	audio_coeff = signal.firwin(audio_taps, audio_Fc/(audio_Fs/2), window=('hann')) # to be changed by you
 
 	# set up the subfigures for plotting
 	subfig_height = np.array([0.8, 2, 1.6]) # relative heights of the subfigures
