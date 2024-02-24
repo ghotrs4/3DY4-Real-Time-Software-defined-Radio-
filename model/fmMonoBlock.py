@@ -159,7 +159,7 @@ if __name__ == "__main__":
 		if il_vs_th == 0:
 			# to be updated by you during the in-lab session based on lfilter
 			# same principle as for i_filt or q_filt (but different arguments)
-			audio_filt = signal.lfilter(audio_coeff, 1.0, fm_demod)
+			audio_filt, state = signal.lfilter(audio_coeff, 1.0, fm_demod, state)
 		else:
 			# to be updated by you for the takehome exercise
 			# with your own code for BLOCK convolution

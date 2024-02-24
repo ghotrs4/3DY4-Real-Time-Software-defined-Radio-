@@ -66,7 +66,7 @@ int main()
 	//
 	std::vector<float> freq;
 	std::vector<float> psd_est;
-	estimatePSD(bin_data, NFFT, 256, freq, psd_est);
+	estimatePSD(bin_data, NFFT, 240, freq, psd_est);
 	logVector("demod_psd", freq, psd_est); // log only positive freq
 
 	// if you wish to write some binary files, see below example
