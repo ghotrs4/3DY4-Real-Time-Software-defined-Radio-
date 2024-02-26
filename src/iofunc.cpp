@@ -8,6 +8,8 @@ Ontario, Canada
 
 #include "dy4.h"
 #include "iofunc.h"
+#include <iostream>
+#include <fstream>
 
 // some basic functions for printing information from vectors
 // or to read from/write to binary files in 32-bit float format
@@ -57,4 +59,30 @@ void writeBinData(const std::string out_fname, const std::vector<float> &bin_dat
 								sizeof(bin_data[i]));
 	}
 	fdout.close();
+}
+
+void readRawData(const std::string in_fname, std::vector<uint8_t> &raw_data)
+{
+	std::cout << "Using file " << in_fname << std::endl;
+	std::ifstream fdin(in_fname, std::ios::binary);
+	if(!fdin) {
+		std::cout << "File " << in_fname << " not found ... exiting!\n";
+		exit(1);
+	} else {
+		std::cout << "Reading raw binary from \"" << in_fname << "\"\n";
+	}
+	fdin.seekg(0, std::ios::end);
+	const unsigned int num_samples = fdin.tellg() / sizeof(uint8_t);
+
+	raw_data.resize(num_samples);
+	fdin.seekg(0, std::ios::beg);
+	fdin.read(reinterpret_cast<char*>(&raw_data[0]), num_samples*sizeof(uint8_t));
+	fdin.close();
+}
+
+void convertRaw(const std::vector<uint8_t> raw_data, std::vector<double> &iq_data) {
+	iq_data.resize(raw_data.size()*4);
+	for(int i = 0; i < raw_data.size(); i++) {
+		iq_data[i]=((double)raw_data[i]-128.0)/128.0;
+	}
 }

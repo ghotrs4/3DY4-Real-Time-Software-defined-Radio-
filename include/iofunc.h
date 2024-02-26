@@ -25,4 +25,8 @@ void readBinData(const std::string, std::vector<float> &);
 
 void writeBinData(const std::string, const std::vector<float> &);
 
+void readRawData(const std::string in_fname, std::vector<uint8_t> &raw_data);
+
+void convertRaw(const std::vector<uint8_t> raw_data, std::vector<double> &iq_data);
+
 #endif // DY4_IOFUNC_H

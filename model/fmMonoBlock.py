@@ -71,6 +71,8 @@ if __name__ == "__main__":
 	# IQ data is assumed to be in 8-bits unsigned (and interleaved)
 	in_fname = "../data/iq_samples.raw"
 	raw_data = np.fromfile(in_fname, dtype='uint8')
+	for i in range(5):
+		print(raw_data[i])
 	print("Read raw RF data from \"" + in_fname + "\" in unsigned 8-bit format")
 	# IQ data is normalized between -1 and +1 in 32-bit float format
 	iq_data = (np.float32(raw_data) - 128.0)/128.0

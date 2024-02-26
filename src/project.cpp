@@ -14,8 +14,38 @@ Ontario, Canada
 #include "iofunc.h"
 #include "logfunc.h"
 
+using namespace std;
+
+void mono()
+{
+	//for debug, add mode functionality
+	float rf_Fs = 2.4e6;
+	float rf_Fc = 100e3;
+	unsigned short int rf_taps = 101;
+	float rf_decim = 10;
+
+	float audio_Fs = 48e3;
+	float audio_decim = 5;
+	unsigned short int audio_taps = 101;
+	float audio_Fc = 16e3;
+
+	const std::string in_fname = "../data/iq_samples.raw";
+	std::vector<uint8_t> raw_data;
+	readRawData(in_fname, raw_data);
+	std::vector<double> iq_data;
+	convertRaw(raw_data, iq_data);
+	cout << iq_data[0] << endl;
+
+	std::vector<float> rf_coeff;
+	impulseResponseLPF(rf_Fs, rf_Fc, rf_taps, rf_coeff);
+
+	std::vector<float> audio_coeff;
+	impulseResponseLPF(audio_Fs, audio_Fc, audio_taps, audio_coeff);
+}
+
 int main()
 {
+	mono();
 	// binary files can be generated through the
 	// Python models from the "../model/" sub-folder
 	const std::string in_fname = "../data/fm_demod_10.bin";
