@@ -42,3 +42,51 @@ void convolveFIR(std::vector<float> &y, const std::vector<float> &x, const std::
 		}
 	}
 }
+
+void blockConvolveFIR(std::vector<float> &y, const std::vector<float> &x, const std::vector<float> &h, std::vector<float> &state, int &position, int block_size)
+{
+	// allocate memory for the output (filtered) data
+	y.clear(); //y.resize(x.size()+h.size()-1, 0.0);
+
+	state.resize(h.size() - 1, 0.0);
+
+	std::vector<float> xb;
+	std::vector<float> yb;
+
+	xb = std::vector<float>(x.begin() + position, x.begin() + position + block_size); // new block
+	yb.clear(); // clear output
+	yb.resize(xb.size(), 0.0);
+
+	for(int n=0;n<yb.size();n++){
+		for(int k=0;k<h.size();k++){
+			if((n-k)>=0){
+				yb[n]+=h[k]*xb[n-k];
+			} else {
+				yb[n] += h[k] * state[state.size() - (k-n)];
+			}
+		}
+	}
+
+	if (state.size() > block_size) {
+		state.insert(state.begin(), state.begin() + block_size, state.end()); // left shift to make room
+		state.insert(state.end() - block_size, xb.begin(), xb.end()); // put whole block into state
+	} else {
+		state = std::vector<float>(xb.end() - state.size(), xb.end());
+	}
+
+	position += block_size;
+}
+
+void fmDemodArctan(std::vector<float> I, std::vector<float> Q, float &prev_I, float &prev_Q, std::vector<float>& fm_demod) {
+	fm_demod.resize(I.size());
+	for(int k=0;k<I.size();k++){
+		if(k>0){
+			fm_demod[k] = (I[k]*Q[k-1]-Q[k]*I[k-1])/(pow(I[k],2)+pow(Q[k],2));
+		}
+		else{
+			fm_demod[k] = (I[k]*prev_Q-Q[k]*prev_I)/(pow(I[k],2)+pow(Q[k],2));
+		}
+	}
+	prev_I = I[I.size()-1];
+	prev_Q = Q[Q.size()-1];
+}

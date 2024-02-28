@@ -41,6 +41,32 @@ void mono()
 
 	std::vector<float> audio_coeff;
 	impulseResponseLPF(audio_Fs, audio_Fc, audio_taps, audio_coeff);
+
+	std::vector<float> y;
+	std::vector<float> state;
+	int position = 0;
+	int block_size = 1000;
+	std::vector<float> i_samples;
+	std::vector<float> q_samples;
+	float prev_I, prev_Q;
+	std::vector<float> fm_demod;
+
+	for(int i=0;i<iq_data.size();i+=2){
+		i_samples.push_back(iq_data[i]);
+		q_samples.push_back(iq_data[i+1]);
+	}
+
+	while ((position+1) * block_size < iq_data.size()) {
+		std::vector<float> i_block;
+		std::vector<float> q_block;
+
+		blockConvolveFIR(i_block, i_samples, audio_coeff, state, position, block_size);
+		blockConvolveFIR(q_block, q_samples, audio_coeff, state, position, block_size);
+
+		// downsample
+
+		fmDemodArctan(i_block, q_block, prev_I, prev_Q, fm_demod);
+	}
 }
 
 int main()
