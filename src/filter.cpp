@@ -81,14 +81,11 @@ void fmDemodArctan(std::vector<float> I, std::vector<float> Q, float &prev_I, fl
 	fm_demod.resize(I.size());
 	std::cout<<I.size()<<std::endl;//debug
 	for(int k=0;k<I.size();k++){
-		std::cout<<"what"<<std::endl;
 		if(k>0){
 			fm_demod[k] = (I[k]*Q[k-1]-Q[k]*I[k-1])/(pow(I[k],2)+pow(Q[k],2));
-			std::cout<<"here 2"<<std::endl;//debug
 		}
 		else{
 			fm_demod[k] = (I[k]*prev_Q-Q[k]*prev_I)/(pow(I[k],2)+pow(Q[k],2));
-			std::cout<<"here 3"<<std::endl;//debug
 		}
 	}
 	prev_I = I[I.size()-1];
