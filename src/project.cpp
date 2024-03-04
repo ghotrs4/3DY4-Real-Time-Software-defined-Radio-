@@ -16,18 +16,20 @@ Ontario, Canada
 
 using namespace std;
 
-void mono()
+void mono(const int mode)
 {
 	//for debug, add mode functionality
 	float rf_Fs = 2.4e6;
 	float rf_Fc = 100e3;
 	unsigned short int rf_taps = 101;
-	float rf_decim = 10;
+	float rf_decim = mode == 0 ? 10 : 5;//add modes
 
 	float audio_Fs = 48e3;
-	float audio_decim = 5;
+	float audio_decim = mode == 0 ? 5 : 8;//add modes
 	unsigned short int audio_taps = 101;
 	float audio_Fc = 16e3;
+
+	std::vector<float> audio_data; //output audio sample vectpr
 
 	const std::string in_fname = "../data/iq_samples.raw";
 	std::vector<uint8_t> raw_data;
@@ -38,40 +40,68 @@ void mono()
 
 	std::vector<float> rf_coeff;
 	impulseResponseLPF(rf_Fs, rf_Fc, rf_taps, rf_coeff);
+	cout<<"rf coefficients generated!"<<endl;//debug
 
 	std::vector<float> audio_coeff;
 	impulseResponseLPF(audio_Fs, audio_Fc, audio_taps, audio_coeff);
-
+	cout<<"impulseResponseLPF generated!"<<endl;//debug
+	
 	std::vector<float> y;
 	std::vector<float> state;
 	int position = 0;
 	int block_size = 1000;
 	std::vector<float> i_samples;
 	std::vector<float> q_samples;
-	float prev_I, prev_Q;
+	float prev_I=0;
+	float prev_Q=0;
 	std::vector<float> fm_demod;
 
 	for(int i=0;i<iq_data.size();i+=2){
 		i_samples.push_back(iq_data[i]);
 		q_samples.push_back(iq_data[i+1]);
 	}
+	cout<<"here 1"<<endl;//debug
 
 	while ((position+1) * block_size < iq_data.size()) {
 		std::vector<float> i_block;
 		std::vector<float> q_block;
 
-		blockConvolveFIR(i_block, i_samples, audio_coeff, state, position, block_size);
-		blockConvolveFIR(q_block, q_samples, audio_coeff, state, position, block_size);
+		blockConvolveFIR(i_block, i_samples, rf_coeff, state, position, block_size);
+		blockConvolveFIR(q_block, q_samples, rf_coeff, state, position, block_size);
+		cout<<"convolve 1"<<endl;//debug
 
 		// downsample
+		
+		std::vector<float> i_downsampled;
+		std::vector<float> q_downsampled;
+		downsample(i_block, rf_decim, i_downsampled);
+		downsample(q_block, rf_decim, q_downsampled);
+		cout<<"downsample 1"<<endl;//debug
 
-		fmDemodArctan(i_block, q_block, prev_I, prev_Q, fm_demod);
+		fmDemodArctan(i_downsampled, q_downsampled, prev_I, prev_Q, fm_demod);
+		cout<<"demod"<<endl;//debug
+
+		std::vector<float> audio_filt;
+		cout<<"fm_demod size:"<<fm_demod.size()<<std::endl;
+		cout<<"audio_coeff size:"<<audio_coeff.size()<<std::endl;
+		blockConvolveFIR(audio_filt, fm_demod, audio_coeff, state, position, block_size);
+		cout<<"convolve 2"<<endl;//debug
+
+		position += block_size;
+
+		std::vector<float> audio_block;
+		downsample(audio_filt, audio_decim, audio_block);
+		cout<<"downsample 2"<<endl;//debug
+
+		audio_data.insert(audio_data.end(), audio_block.begin(), audio_block.end());
+		cout<<"insert"<<endl;//debug
 	}
 }
 
 int main()
 {
-	mono();
+	int mode = 0;
+	mono(mode);
 	// binary files can be generated through the
 	// Python models from the "../model/" sub-folder
 	const std::string in_fname = "../data/fm_demod_10.bin";

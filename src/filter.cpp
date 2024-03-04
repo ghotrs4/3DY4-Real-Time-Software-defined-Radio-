@@ -43,7 +43,7 @@ void convolveFIR(std::vector<float> &y, const std::vector<float> &x, const std::
 	}
 }
 
-void blockConvolveFIR(std::vector<float> &y, const std::vector<float> &x, const std::vector<float> &h, std::vector<float> &state, int &position, int block_size)
+void blockConvolveFIR(std::vector<float> &y, const std::vector<float> x, const std::vector<float> h, std::vector<float> &state, int position, int block_size)
 {
 	// allocate memory for the output (filtered) data
 	y.clear(); //y.resize(x.size()+h.size()-1, 0.0);
@@ -74,19 +74,41 @@ void blockConvolveFIR(std::vector<float> &y, const std::vector<float> &x, const 
 		state = std::vector<float>(xb.end() - state.size(), xb.end());
 	}
 
-	position += block_size;
+	y=yb;
 }
 
 void fmDemodArctan(std::vector<float> I, std::vector<float> Q, float &prev_I, float &prev_Q, std::vector<float>& fm_demod) {
 	fm_demod.resize(I.size());
+	std::cout<<I.size()<<std::endl;//debug
 	for(int k=0;k<I.size();k++){
+		std::cout<<"what"<<std::endl;
 		if(k>0){
 			fm_demod[k] = (I[k]*Q[k-1]-Q[k]*I[k-1])/(pow(I[k],2)+pow(Q[k],2));
+			std::cout<<"here 2"<<std::endl;//debug
 		}
 		else{
 			fm_demod[k] = (I[k]*prev_Q-Q[k]*prev_I)/(pow(I[k],2)+pow(Q[k],2));
+			std::cout<<"here 3"<<std::endl;//debug
 		}
 	}
 	prev_I = I[I.size()-1];
 	prev_Q = Q[Q.size()-1];
+}
+
+void downsample(const std::vector<float> data, size_t factor, std::vector<float>& downsampled) {
+    // Iterate through the data and take every 'factor' element
+	std::cout << "data size: " << data.size() << std::endl;
+    for (int i = 0; i < data.size(); i += factor) {
+        downsampled.push_back(data[i]);
+    }
+}
+
+void upsample(const std::vector<float> data, size_t factor, std::vector<float> &upsampled){
+    //iterate through data and insert "factor" number of zeroes in front of each data point
+    for (size_t i = 0; i < data.size(); i++) {
+        upsampled.push_back(data[i]);
+        for(size_t j = factor; j > 1; j--){
+            upsampled.push_back(0);
+        }
+    }
 }
