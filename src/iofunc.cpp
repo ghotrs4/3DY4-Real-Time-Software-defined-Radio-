@@ -80,9 +80,10 @@ void readRawData(const std::string in_fname, std::vector<uint8_t> &raw_data)
 	fdin.close();
 }
 
-void convertRaw(const std::vector<uint8_t> raw_data, std::vector<double> &iq_data) {
-	iq_data.resize(raw_data.size()*4);
+void convertRaw(const std::vector<uint8_t> raw_data, std::vector<float> &iq_data) {
+	iq_data.resize(raw_data.size());
+	std::cout<<"raw data size: "<<iq_data.size()<<std::endl;
 	for(int i = 0; i < raw_data.size(); i++) {
-		iq_data[i]=((double)raw_data[i]-128.0)/128.0;
+		iq_data[i]=((float)raw_data[i]-128.0)/128.0;
 	}
 }

@@ -48,10 +48,9 @@ void blockConvolveFIR(std::vector<float> &y, const std::vector<float> x, const s
 	// allocate memory for the output (filtered) data
 	y.clear(); //y.resize(x.size()+h.size()-1, 0.0);
 
-	state.resize(h.size() - 1, 0.0);
-
 	std::vector<float> xb;
 	std::vector<float> yb;
+
 
 	xb = std::vector<float>(x.begin() + position, x.begin() + position + block_size); // new block
 	yb.clear(); // clear output
@@ -79,7 +78,6 @@ void blockConvolveFIR(std::vector<float> &y, const std::vector<float> x, const s
 
 void fmDemodArctan(std::vector<float> I, std::vector<float> Q, float &prev_I, float &prev_Q, std::vector<float>& fm_demod) {
 	fm_demod.resize(I.size());
-	std::cout<<I.size()<<std::endl;//debug
 	for(int k=0;k<I.size();k++){
 		if(k>0){
 			fm_demod[k] = (I[k]*Q[k-1]-Q[k]*I[k-1])/(pow(I[k],2)+pow(Q[k],2));
@@ -94,7 +92,7 @@ void fmDemodArctan(std::vector<float> I, std::vector<float> Q, float &prev_I, fl
 
 void downsample(const std::vector<float> data, size_t factor, std::vector<float>& downsampled) {
     // Iterate through the data and take every 'factor' element
-	std::cout << "data size: " << data.size() << std::endl;
+	downsampled.clear();
     for (int i = 0; i < data.size(); i += factor) {
         downsampled.push_back(data[i]);
     }
