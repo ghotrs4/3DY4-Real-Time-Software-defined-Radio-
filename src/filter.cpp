@@ -100,9 +100,10 @@ void downsample(const std::vector<float> data, size_t factor, std::vector<float>
 
 void upsample(const std::vector<float> data, size_t factor, std::vector<float> &upsampled){
     //iterate through data and insert "factor" number of zeroes in front of each data point
-    for (size_t i = 0; i < data.size(); i++) {
+	upsampled.clear();
+    for (int i = 0; i < data.size(); i++) {
         upsampled.push_back(data[i]);
-        for(size_t j = factor; j > 1; j--){
+        for(int j = factor; j > 1; j--){
             upsampled.push_back(0);
         }
     }
