@@ -49,8 +49,8 @@ if __name__ == "__main__":
 	# in_fname = "../data/float32filtered.bin"
 	# read data from a binary file (assuming 32-bit floats)
 	float_data = np.fromfile(in_fname, dtype='float32')
-	for i in range(25):
-		print(float_data[i])
+	# for i in range(25):
+	# 	print(float_data[i])
 	print(" Read binary data from \"" + in_fname + "\" in float32 format")
 
 	# # we assume below there are two audio channels where data is
