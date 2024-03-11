@@ -111,3 +111,44 @@ void upsample(const std::vector<float> data, size_t factor, std::vector<float> &
         }
     }
 }
+
+void downsampleBlockConvolveFIR(size_t factor, std::vector<float> &y, const std::vector<float> x, const std::vector<float> h, std::vector<float> &state, int position, int block_size)
+{
+    // allocate memory for the output (filtered) data
+    y.clear(); //y.resize(x.size()+h.size()-1, 0.0);
+
+    std::vector<float> xb;
+    std::vector<float> yb;
+
+    xb = std::vector<float>(x.begin() + position, x.begin() + position + block_size); // new block
+    yb.clear(); // clear output
+    yb.resize(xb.size()/factor, 0.0);
+
+	// std::cout << "yb size: " << yb.size() << std::endl;
+    
+    int g = 0;
+
+    for(int n = 0; n < xb.size(); n += factor){
+        for(int k=0;k<h.size();k++){
+            if((n-k)>=0){
+                yb[g]+=h[k]*xb[n-k];
+            } else {
+                yb[g] += h[k] * state[state.size() - (k-n)];
+            }
+        }
+        g++;
+    }
+
+    if (state.size() > block_size) {
+        state.insert(state.begin(), state.begin() + block_size, state.end()); // left shift to make room
+        state.insert(state.end() - block_size, xb.begin(), xb.end()); // put whole block into state
+    } else {
+        state = std::vector<float>(xb.end() - state.size(), xb.end());
+    }
+
+	// std::cout << "yb size: " << yb.size() << std::endl;
+
+    y=yb;
+
+	// std::cout << "y size: " << y.size() << std::endl;
+}

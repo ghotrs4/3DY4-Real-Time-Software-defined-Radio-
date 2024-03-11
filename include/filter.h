@@ -20,5 +20,6 @@ void blockConvolveFIR(std::vector<float> &y, const std::vector<float> x, const s
 void fmDemodArctan(std::vector<float> I, std::vector<float> Q, float &prev_I, float &prev_Q, std::vector<float>& fm_demod);
 void downsample(const std::vector<float> data, size_t factor, std::vector<float>& downsampled);
 void upsample(const std::vector<float> data, size_t factor, std::vector<float> &upsampled);
+void downsampleBlockConvolveFIR(size_t factor, std::vector<float> &y, const std::vector<float> x, const std::vector<float> h, std::vector<float> &state, int position, int block_size);
 
 #endif // DY4_FILTER_H

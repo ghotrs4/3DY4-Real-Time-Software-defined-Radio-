@@ -64,7 +64,7 @@ void mono(const int mode,std::vector<float>& audio_data)
 			audio_upsample = 1;
 	}
 
-	const std::string in_fname = "../data/iq_samples.raw";
+	const std::string in_fname = "../data/1440.raw";
 	std::vector<uint8_t> raw_data;
 	readRawData(in_fname, raw_data);
 	std::vector<float> iq_data;
@@ -146,19 +146,16 @@ void mono(const int mode,std::vector<float>& audio_data)
 		// }
 		// cout<<"size of fmdemod: "<<fm_demod.size()<<endl;
 		// cout<<"size of block size: "<<block_size/rf_decim<<endl;
-		upsample(fm_demod, audio_upsample, upsampled);
-		// cout<<"upsample done..."<<endl;
-		// cout<<"size of upsampled blk: "<<upsampled.size()<<endl;
-		blockConvolveFIR(audio_filt, upsampled, audio_coeff, state_audio, 0, upsampled.size());
+		// blockConvolveFIR(audio_filt, fm_demod, audio_coeff, state_audio, 0, fm_demod.size());
 		// cout << "wtf" << endl;
 		// for(int i=0;i<5;i++){
 		// 	cout<<"audio filt samples: "<<audio_filt[i]<<endl;
 		// }
 
-		downsample(audio_filt, audio_decim, audio_block);
-		// for(int i=0;i<5;i++){
-		// 	cout<<"audio block samples: "<<audio_block[i]<<endl;
-		// }
+		// downsample(audio_filt, audio_decim, audio_block);
+
+		downsampleBlockConvolveFIR(audio_decim, audio_block, fm_demod, audio_coeff, state_audio, 0, fm_demod.size());
+
 		if (position != 0) {
 			audio_data.insert(audio_data.end(), audio_block.begin(), audio_block.end());
 		}
