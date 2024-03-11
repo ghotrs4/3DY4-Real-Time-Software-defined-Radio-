@@ -35,14 +35,14 @@ void mono(const int mode,std::vector<float>& audio_data)
 			audio_Fs = 240e3;
 			rf_decim = 10;
 			audio_decim = 5;
-			audio_upsample = 0;
+			audio_upsample = 1;
 			break;
 		case 1://output Fs = 36k
 			rf_Fs = 1.44e6;
 			audio_Fs = 288e3;
 			rf_decim = 5;
 			audio_decim = 8;
-			audio_upsample = 0;
+			audio_upsample = 1;
 			break;
 		case 2://output Fs = 44.1k
 			rf_Fs = 2.4e6;
@@ -56,7 +56,7 @@ void mono(const int mode,std::vector<float>& audio_data)
 			audio_Fs = 240e3;
 			rf_decim = 10;
 			audio_decim = 5;
-			audio_upsample = 0;
+			audio_upsample = 1;
 	}
 
 	const std::string in_fname = "../data/iq_samples.raw";
@@ -140,16 +140,15 @@ void mono(const int mode,std::vector<float>& audio_data)
 		// }
 		// cout<<"size of fmdemod: "<<fm_demod.size()<<endl;
 		// cout<<"size of block size: "<<block_size/rf_decim<<endl;
-		blockConvolveFIR(audio_filt, fm_demod, audio_coeff, state_audio, 0, fm_demod.size());
 		// cout << "wtf" << endl;
 		// for(int i=0;i<5;i++){
 		// 	cout<<"audio filt samples: "<<audio_filt[i]<<endl;
 		// }
 
-		downsample(audio_filt, audio_decim, audio_block);
 		// for(int i=0;i<5;i++){
 		// 	cout<<"audio block samples: "<<audio_block[i]<<endl;
 		// }
+		downsampleBlockConvolveFIR(audio_decim, audio_block, fm_demod, audio_coeff, state_audio, 0, fm_demod.size());
 		if (position != 0) {
 			audio_data.insert(audio_data.end(), audio_block.begin(), audio_block.end());
 		}
