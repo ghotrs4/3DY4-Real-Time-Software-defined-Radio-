@@ -11,7 +11,7 @@ Ontario, Canada
 #include <cmath>
 
 // function to compute the impulse response "h" based on the sinc function
-void impulseResponseLPF(float Fs, float Fc, unsigned short int num_taps, std::vector<float> &h, int gain)
+void impulseResponseLPF(float Fs, float Fc, unsigned short int num_taps, std::vector<float> &h)
 {
 	h.clear(); h.resize(num_taps, 0.0);
 
@@ -24,7 +24,7 @@ void impulseResponseLPF(float Fs, float Fc, unsigned short int num_taps, std::ve
 			double param = PI*Norm_cutoff*(i-(num_taps-1)/2);
 			h[i] = Norm_cutoff*sin(param)/param;
 		}
-		h[i]=h[i]*pow(sin(i*PI/num_taps),2)*gain;
+		h[i]=h[i]*pow(sin(i*PI/num_taps),2);
 	}
 }
 
@@ -50,6 +50,7 @@ void blockConvolveFIR(std::vector<float> &y, const std::vector<float> x, const s
 
 	std::vector<float> xb;
 	std::vector<float> yb;
+
 
 	xb = std::vector<float>(x.begin() + position, x.begin() + position + block_size); // new block
 	yb.clear(); // clear output
@@ -100,10 +101,6 @@ void downsample(const std::vector<float> data, size_t factor, std::vector<float>
 void upsample(const std::vector<float> data, size_t factor, std::vector<float> &upsampled){
     //iterate through data and insert "factor" number of zeroes in front of each data point
 	upsampled.clear();
-	if(factor==1){
-		upsampled = data;
-		return;
-	}
     for (int i = 0; i < data.size(); i++) {
         upsampled.push_back(data[i]);
         for(int j = factor; j > 1; j--){
