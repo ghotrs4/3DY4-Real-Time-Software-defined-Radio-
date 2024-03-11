@@ -11,7 +11,7 @@ Ontario, Canada
 #include <cmath>
 
 // function to compute the impulse response "h" based on the sinc function
-void impulseResponseLPF(float Fs, float Fc, unsigned short int num_taps, std::vector<float> &h)
+void impulseResponseLPF(float Fs, float Fc, unsigned short int num_taps, std::vector<float> &h, int gain)
 {
 	h.clear(); h.resize(num_taps, 0.0);
 
@@ -24,7 +24,7 @@ void impulseResponseLPF(float Fs, float Fc, unsigned short int num_taps, std::ve
 			double param = PI*Norm_cutoff*(i-(num_taps-1)/2);
 			h[i] = Norm_cutoff*sin(param)/param;
 		}
-		h[i]=h[i]*pow(sin(i*PI/num_taps),2);
+		h[i]=h[i]*pow(sin(i*PI/num_taps),2)*gain;
 	}
 }
 
@@ -50,7 +50,6 @@ void blockConvolveFIR(std::vector<float> &y, const std::vector<float> x, const s
 
 	std::vector<float> xb;
 	std::vector<float> yb;
-
 
 	xb = std::vector<float>(x.begin() + position, x.begin() + position + block_size); // new block
 	yb.clear(); // clear output
@@ -101,51 +100,14 @@ void downsample(const std::vector<float> data, size_t factor, std::vector<float>
 void upsample(const std::vector<float> data, size_t factor, std::vector<float> &upsampled){
     //iterate through data and insert "factor" number of zeroes in front of each data point
 	upsampled.clear();
+	if(factor==1){
+		upsampled = data;
+		return;
+	}
     for (int i = 0; i < data.size(); i++) {
         upsampled.push_back(data[i]);
         for(int j = factor; j > 1; j--){
             upsampled.push_back(0);
         }
     }
-}
-
-void downsampleBlockConvolveFIR(size_t factor, std::vector<float> &y, const std::vector<float> x, const std::vector<float> h, std::vector<float> &state, int position, int block_size)
-{
-    // allocate memory for the output (filtered) data
-    y.clear(); //y.resize(x.size()+h.size()-1, 0.0);
-
-    std::vector<float> xb;
-    std::vector<float> yb;
-
-    xb = std::vector<float>(x.begin() + position, x.begin() + position + block_size); // new block
-    yb.clear(); // clear output
-    yb.resize(xb.size()/factor, 0.0);
-
-	// std::cout << "yb size: " << yb.size() << std::endl;
-    
-    int g = 0;
-
-    for(int n = 0; n < xb.size(); n += factor){
-        for(int k=0;k<h.size();k++){
-            if((n-k)>=0){
-                yb[g]+=h[k]*xb[n-k];
-            } else {
-                yb[g] += h[k] * state[state.size() - (k-n)];
-            }
-        }
-        g++;
-    }
-
-    if (state.size() > block_size) {
-        state.insert(state.begin(), state.begin() + block_size, state.end()); // left shift to make room
-        state.insert(state.end() - block_size, xb.begin(), xb.end()); // put whole block into state
-    } else {
-        state = std::vector<float>(xb.end() - state.size(), xb.end());
-    }
-
-	// std::cout << "yb size: " << yb.size() << std::endl;
-
-    y=yb;
-
-	// std::cout << "y size: " << y.size() << std::endl;
 }

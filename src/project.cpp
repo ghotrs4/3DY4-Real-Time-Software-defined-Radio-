@@ -13,6 +13,7 @@ Ontario, Canada
 #include "genfunc.h"
 #include "iofunc.h"
 #include "logfunc.h"
+#include <numeric>
 
 using namespace std;
 
@@ -25,9 +26,11 @@ void mono(const int mode,std::vector<float>& audio_data)
 
 	float audio_Fs;
 	float audio_decim;
-	float audio_upsample;
+	int audio_upsample;
 	unsigned short int audio_taps = 101;
 	float audio_Fc = 16e3;
+
+	int block_size = 1024 * rf_decim * audio_decim * 2;
 
 	switch(mode) {
 		case 0: //output Fs = 48k
@@ -35,31 +38,33 @@ void mono(const int mode,std::vector<float>& audio_data)
 			audio_Fs = 240e3;
 			rf_decim = 10;
 			audio_decim = 5;
-			audio_upsample = 0;
+			audio_upsample = 1;
 			break;
 		case 1://output Fs = 36k
 			rf_Fs = 1.44e6;
 			audio_Fs = 288e3;
 			rf_decim = 5;
 			audio_decim = 8;
-			audio_upsample = 0;
+			audio_upsample = 1;
 			break;
 		case 2://output Fs = 44.1k
 			rf_Fs = 2.4e6;
 			audio_Fs = 240e3;
 			rf_decim = 10;
-			audio_decim = 147;
-			audio_upsample = 800;
+			audio_decim = 800;
+			audio_upsample = 147;
+			audio_taps*=audio_upsample;
+			block_size = 25600;
 			break;
 		default:
 			rf_Fs = 2.4e6;
 			audio_Fs = 240e3;
 			rf_decim = 10;
 			audio_decim = 5;
-			audio_upsample = 0;
+			audio_upsample = 1;
 	}
 
-	const std::string in_fname = "../data/1440.raw";
+	const std::string in_fname = "../data/iq_samples.raw";
 	std::vector<uint8_t> raw_data;
 	readRawData(in_fname, raw_data);
 	std::vector<float> iq_data;
@@ -68,10 +73,10 @@ void mono(const int mode,std::vector<float>& audio_data)
 	cout <<"size of iq_data: "<<iq_data.size()<<endl;
 
 	std::vector<float> rf_coeff;
-	impulseResponseLPF(rf_Fs, rf_Fc, rf_taps, rf_coeff);
+	impulseResponseLPF(rf_Fs, rf_Fc, rf_taps, rf_coeff, 1);
 
 	std::vector<float> audio_coeff;
-	impulseResponseLPF(audio_Fs, audio_Fc, audio_taps, audio_coeff);
+	impulseResponseLPF(audio_Fs, audio_Fc, audio_taps, audio_coeff, audio_upsample);
 	
 	std::vector<float> y;
 
@@ -84,7 +89,6 @@ void mono(const int mode,std::vector<float>& audio_data)
 	state_audio.resize(audio_coeff.size() - 1, 0.0);
 
 	int position = 0;
-	int block_size = 1024 * rf_decim * audio_decim * 2;
 	std::vector<float> i_samples;
 	std::vector<float> q_samples;
 	float prev_I=0;
@@ -95,8 +99,8 @@ void mono(const int mode,std::vector<float>& audio_data)
 		i_samples.push_back(iq_data[i]);
 		q_samples.push_back(iq_data[i+1]);
 	}
-	cout <<"size of i_samples: "<<i_samples.size()<<endl;
-	cout <<"size of q_samples: "<<q_samples.size()<<endl;
+	// cout <<"size of i_samples: "<<i_samples.size()<<endl;
+	// cout <<"size of q_samples: "<<q_samples.size()<<endl;
 
 	std::vector<float> i_block;
 	std::vector<float> q_block;
@@ -104,11 +108,13 @@ void mono(const int mode,std::vector<float>& audio_data)
 	std::vector<float> i_downsampled;
 	std::vector<float> q_downsampled;
 
+	std::vector<float> upsampled;
+
 	std::vector<float> audio_filt;
 	std::vector<float> audio_block;
-	cout<<"block size"<<block_size<<endl;
-	cout<<"begin debug: ..."<<endl;
-	cout<<"rf_coeff sample 0: "<<rf_coeff[0]<<endl;
+	// cout<<"block size"<<block_size<<endl;
+	// cout<<"begin debug: ..."<<endl;
+	// cout<<"rf_coeff sample 0: "<<rf_coeff[0]<<endl;
 	while (position+block_size<iq_data.size()) {
 		cout<<"block number: "<<position/block_size<<endl;
 
@@ -140,16 +146,19 @@ void mono(const int mode,std::vector<float>& audio_data)
 		// }
 		// cout<<"size of fmdemod: "<<fm_demod.size()<<endl;
 		// cout<<"size of block size: "<<block_size/rf_decim<<endl;
-		blockConvolveFIR(audio_filt, fm_demod, audio_coeff, state_audio, 0, fm_demod.size());
+		upsample(fm_demod, audio_upsample, upsampled);
+		// cout<<"upsample done..."<<endl;
+		// cout<<"size of upsampled blk: "<<upsampled.size()<<endl;
+		blockConvolveFIR(audio_filt, upsampled, audio_coeff, state_audio, 0, upsampled.size());
 		// cout << "wtf" << endl;
 		// for(int i=0;i<5;i++){
 		// 	cout<<"audio filt samples: "<<audio_filt[i]<<endl;
 		// }
 
-		// downsample(audio_filt, audio_decim, audio_block);
-
-		downsampleBlockConvolveFIR(audio_decim, audio_block, fm_demod, audio_coeff, state_audio, 0, fm_demod.size());
-
+		downsample(audio_filt, audio_decim, audio_block);
+		// for(int i=0;i<5;i++){
+		// 	cout<<"audio block samples: "<<audio_block[i]<<endl;
+		// }
 		if (position != 0) {
 			audio_data.insert(audio_data.end(), audio_block.begin(), audio_block.end());
 		}
@@ -160,7 +169,7 @@ void mono(const int mode,std::vector<float>& audio_data)
 
 int main()
 {
-	int mode = 1;
+	int mode = 2;
 	std::vector<float> audio_data; //output audio sample vector
 	
 	mono(mode, audio_data);
