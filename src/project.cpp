@@ -24,8 +24,8 @@ void mono(const int mode,std::vector<float>& audio_data)
 	float rf_decim;
 
 	float audio_Fs;
-	float audio_decim;
-	float audio_upsample;
+	int audio_decim;
+	int audio_upsample;
 	unsigned short int audio_taps = 101;
 	float audio_Fc = 16e3;
 
@@ -48,8 +48,8 @@ void mono(const int mode,std::vector<float>& audio_data)
 			rf_Fs = 2.4e6;
 			audio_Fs = 240e3;
 			rf_decim = 10;
-			audio_decim = 147;
-			audio_upsample = 800;
+			audio_decim = 800;
+			audio_upsample = 147;
 			break;
 		default:
 			rf_Fs = 2.4e6;
@@ -84,7 +84,7 @@ void mono(const int mode,std::vector<float>& audio_data)
 	state_audio.resize(audio_coeff.size() - 1, 0.0);
 
 	int position = 0;
-	int block_size = 1024 * rf_decim * audio_decim * 2;
+	int block_size = 1024 * rf_decim * audio_decim * 2/audio_upsample;
 	std::vector<float> i_samples;
 	std::vector<float> q_samples;
 	float prev_I=0;
@@ -148,12 +148,15 @@ void mono(const int mode,std::vector<float>& audio_data)
 		// for(int i=0;i<5;i++){
 		// 	cout<<"audio block samples: "<<audio_block[i]<<endl;
 		// }
-		downsampleBlockConvolveFIR(audio_decim, audio_block, fm_demod, audio_coeff, state_audio, 0, fm_demod.size());
+		//downsampleBlockConvolveFIR(audio_decim, audio_block, fm_demod, audio_coeff, state_audio, 0, fm_demod.size());
+		resampleBlockConvolveFIR(audio_upsample, audio_decim, audio_block, fm_demod, audio_coeff, state_audio, 0, fm_demod.size());
 		if (position != 0) {
 			audio_data.insert(audio_data.end(), audio_block.begin(), audio_block.end());
 		}
 
 		position += block_size;
+		cout<<"position+block_size: "<<position+block_size<<endl;
+		cout<<"iq_data.size(): "<<iq_data.size()<<endl;
 	}
 }
 

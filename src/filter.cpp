@@ -143,3 +143,38 @@ void downsampleBlockConvolveFIR(size_t factor, std::vector<float> &y, const std:
 
     y=yb;
 }
+void resampleBlockConvolveFIR(int upFactor, int downFactor, std::vector<float> &y, const std::vector<float> x, const std::vector<float> h, std::vector<float> &state, int position, int block_size)
+{
+    // allocate memory for the output (filtered) data
+    y.clear(); //y.resize(x.size()+h.size()-1, 0.0);
+
+    std::vector<float> xb;
+    std::vector<float> yb;
+
+
+    xb = std::vector<float>(x.begin() + position, x.begin() + position + block_size); // new block
+    yb.clear(); // clear output
+    yb.resize(xb.size()/downFactor, 0.0);
+    
+    int g = 0;
+    for(int n = 0; n < xb.size(); n += downFactor){
+        int phase = n % upFactor;
+        for(int k = 0; k < h.size(); k += upFactor){
+            if((n-k-phase)/upFactor>=0 && (k+phase)<h.size()){
+                yb[g]+=h[phase+k] * xb[(n-k-phase)/upFactor];
+            } else if((k+phase)<h.size()&&(state.size() - (k-n)-phase)/upFactor>=0){
+                yb[g] += h[k+phase] * state[(state.size() - (k-n)-phase)/upFactor];
+            }
+        }
+        g++;
+    }
+	std::cout<<"done resample"<<std::endl;
+    if (state.size() > block_size) {
+        state.insert(state.begin(), state.begin() + block_size, state.end()); // left shift to make room
+        state.insert(state.end() - block_size, xb.begin(), xb.end()); // put whole block into state
+    } else {
+        state = std::vector<float>(xb.end() - state.size(), xb.end());
+    }
+
+    y=yb;
+}
