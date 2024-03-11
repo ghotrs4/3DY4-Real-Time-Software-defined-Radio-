@@ -11,7 +11,7 @@ Ontario, Canada
 #include <cmath>
 
 // function to compute the impulse response "h" based on the sinc function
-void impulseResponseLPF(float Fs, float Fc, unsigned short int num_taps, std::vector<float> &h)
+void impulseResponseLPF(float Fs, float Fc, unsigned short int num_taps, std::vector<float> &h, int upFactor)
 {
 	h.clear(); h.resize(num_taps, 0.0);
 
@@ -24,7 +24,7 @@ void impulseResponseLPF(float Fs, float Fc, unsigned short int num_taps, std::ve
 			double param = PI*Norm_cutoff*(i-(num_taps-1)/2);
 			h[i] = Norm_cutoff*sin(param)/param;
 		}
-		h[i]=h[i]*pow(sin(i*PI/num_taps),2);
+		h[i]=h[i]*pow(sin(i*PI/num_taps),2)*upFactor;
 	}
 }
 
@@ -154,27 +154,32 @@ void resampleBlockConvolveFIR(int upFactor, int downFactor, std::vector<float> &
 
     xb = std::vector<float>(x.begin() + position, x.begin() + position + block_size); // new block
     yb.clear(); // clear output
-    yb.resize(xb.size()/downFactor, 0.0);
+    yb.resize((xb.size()/downFactor)*upFactor, 0.0);
+
+	// std::cout<<"xb size: " << xb.size() << std::endl;
+	// std::cout<<"h size: " << h.size() << std::endl;
+	// std::cout<<"yb size: " << yb.size() << std::endl;
     
     int g = 0;
     for(int n = 0; n < xb.size(); n += downFactor){
         int phase = n % upFactor;
-        for(int k = 0; k < h.size(); k += upFactor){
-            if((n-k-phase)/upFactor>=0 && (k+phase)<h.size()){
-                yb[g]+=h[phase+k] * xb[(n-k-phase)/upFactor];
-            } else if((k+phase)<h.size()&&(state.size() - (k-n)-phase)/upFactor>=0){
-                yb[g] += h[k+phase] * state[(state.size() - (k-n)-phase)/upFactor];
+		// std::cout<<"phase: " << phase << std::endl;
+		// std::cout<<"n: " << n << std::endl;
+        for(int k = 0; k < state.size(); k += upFactor){
+			// std::cout<<"k: " << k << std::endl;
+            if((n-phase-k)>=0){
+                yb[g]+=h[phase+k] * xb[(n-phase-k)];
+            } else {
+                yb[g] += h[phase+k] * state[(state.size() - (k-n-phase))];
             }
         }
         g++;
     }
-	std::cout<<"done resample"<<std::endl;
-    if (state.size() > block_size) {
-        state.insert(state.begin(), state.begin() + block_size, state.end()); // left shift to make room
-        state.insert(state.end() - block_size, xb.begin(), xb.end()); // put whole block into state
-    } else {
-        state = std::vector<float>(xb.end() - state.size(), xb.end());
-    }
+	// std::cout<<"done resample"<<std::endl;
+	// std::cout<<"state size: "<<state.size()<<std::endl;
+	// std::cout<<"block size: "<<block_size<<std::endl;
+    state = std::vector<float>(xb.end() - state.size(), xb.end());
+	std::cout<<"done state"<<std::endl;
 
     y=yb;
 }

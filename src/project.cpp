@@ -50,6 +50,7 @@ void mono(const int mode,std::vector<float>& audio_data)
 			rf_decim = 10;
 			audio_decim = 800;
 			audio_upsample = 147;
+			audio_taps *= audio_upsample;
 			break;
 		default:
 			rf_Fs = 2.4e6;
@@ -68,10 +69,10 @@ void mono(const int mode,std::vector<float>& audio_data)
 	cout <<"size of iq_data: "<<iq_data.size()<<endl;
 
 	std::vector<float> rf_coeff;
-	impulseResponseLPF(rf_Fs, rf_Fc, rf_taps, rf_coeff);
+	impulseResponseLPF(rf_Fs, rf_Fc, rf_taps, rf_coeff, 1);
 
 	std::vector<float> audio_coeff;
-	impulseResponseLPF(audio_Fs, audio_Fc, audio_taps, audio_coeff);
+	impulseResponseLPF(audio_Fs, audio_Fc, audio_taps, audio_coeff, audio_upsample);
 	
 	std::vector<float> y;
 
@@ -81,7 +82,7 @@ void mono(const int mode,std::vector<float>& audio_data)
 
 	i_state_rf.resize(rf_coeff.size() - 1, 0.0);
 	q_state_rf.resize(rf_coeff.size() - 1, 0.0);
-	state_audio.resize(audio_coeff.size() - 1, 0.0);
+	state_audio.resize((audio_coeff.size()/audio_upsample - 1), 0.0);
 
 	int position = 0;
 	int block_size = 1024 * rf_decim * audio_decim * 2/audio_upsample;
@@ -109,7 +110,7 @@ void mono(const int mode,std::vector<float>& audio_data)
 	cout<<"block size"<<block_size<<endl;
 	cout<<"begin debug: ..."<<endl;
 	cout<<"rf_coeff sample 0: "<<rf_coeff[0]<<endl;
-	while (position+block_size<iq_data.size()) {
+	while (position+block_size<iq_data.size()) {//touched
 		cout<<"block number: "<<position/block_size<<endl;
 
 		// for(int i=0;i<5;i++){
@@ -162,7 +163,7 @@ void mono(const int mode,std::vector<float>& audio_data)
 
 int main()
 {
-	int mode = 0;
+	int mode = 2;
 	std::vector<float> audio_data; //output audio sample vector
 	
 	mono(mode, audio_data);
