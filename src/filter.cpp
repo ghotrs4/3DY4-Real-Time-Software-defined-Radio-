@@ -21,10 +21,10 @@ void impulseResponseLPF(float Fs, float Fc, unsigned short int num_taps, std::ve
 			h[i]= Norm_cutoff;
 		}
 		else{
-			double param = PI*Norm_cutoff*(i-(num_taps-1)/2);
+			double param = PI*Norm_cutoff*(i-((float)num_taps-1.0)/2.0);
 			h[i] = Norm_cutoff*sin(param)/param;
 		}
-		h[i]=h[i]*pow(sin(i*PI/num_taps),2)*upFactor;
+		h[i]=h[i]*pow(sin(i*PI/num_taps),2)*(float)upFactor;
 	}
 }
 
@@ -154,26 +154,28 @@ void resampleBlockConvolveFIR(int upFactor, int downFactor, std::vector<float> &
 
     xb = std::vector<float>(x.begin() + position, x.begin() + position + block_size); // new block
     yb.clear(); // clear output
-    yb.resize((xb.size()/downFactor)*upFactor, 0.0);
+    yb.resize((xb.size()/(float)downFactor)*upFactor, 0.0);
 
-	// std::cout<<"xb size: " << xb.size() << std::endl;
-	// std::cout<<"h size: " << h.size() << std::endl;
-	// std::cout<<"yb size: " << yb.size() << std::endl;
+	std::cout<<"xb size: " << xb.size() << std::endl;
+	std::cout<<"h size: " << h.size() << std::endl;
+	std::cout<<"yb size: " << yb.size() << std::endl;
     
-    int g = 0;
-    for(int n = 0; n < xb.size(); n += downFactor){
+    // int n = 0;
+    for(int n = 0; n < yb.size()*upFactor; n += downFactor){
         int phase = n % upFactor;
 		// std::cout<<"phase: " << phase << std::endl;
 		// std::cout<<"n: " << n << std::endl;
-        for(int k = 0; k < state.size(); k += upFactor){
-			// std::cout<<"k: " << k << std::endl;
-            if((n-phase-k)>=0){
-                yb[g]+=h[phase+k] * xb[(n-phase-k)];
+        for(int k = phase; k < h.size(); k += upFactor){
+            if((n-k)>=0){
+                yb[n/downFactor]+=h[k] * xb[(n-k)/upFactor];
+				// std::cout<<"h["<<phase+k<<"]: " << h[phase+k] << std::endl;
+				// std::cout<<"xb["<<(n-phase-k)/upFactor<<"]: " << xb[(n-phase-k)/upFactor] << std::endl;
+				// std::cout << "yb["<<n/downFactor<<"]: " << yb[n/downFactor] << std::endl;
             } else {
-                yb[g] += h[phase+k] * state[(state.size() - (k-n-phase))];
+                yb[n/downFactor] += h[k] * state[(state.size() + (n-k))/upFactor];
             }
         }
-        g++;
+        // g++;
     }
 	// std::cout<<"done resample"<<std::endl;
 	// std::cout<<"state size: "<<state.size()<<std::endl;
