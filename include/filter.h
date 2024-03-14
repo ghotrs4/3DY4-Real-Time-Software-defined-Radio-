@@ -22,5 +22,6 @@ void downsample(const std::vector<float> data, size_t factor, std::vector<float>
 void upsample(const std::vector<float> data, size_t factor, std::vector<float> &upsampled);
 void downsampleBlockConvolveFIR(size_t factor, std::vector<float> &y, const std::vector<float> x, const std::vector<float> h, std::vector<float> &state, int position, int block_size);
 void resampleBlockConvolveFIR(int upFactor, int downFactor, std::vector<float> &y, const std::vector<float> x, const std::vector<float> h, std::vector<float> &state, int position, int block_size);
+void impulseResponseBPF(float Fs, float Fb, float Fe, unsigned short int num_taps, std::vector<float> &h, int upFactor);
 
 #endif // DY4_FILTER_H

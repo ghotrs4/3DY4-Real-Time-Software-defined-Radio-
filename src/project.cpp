@@ -65,7 +65,7 @@ void mono(const int mode,std::vector<float>& audio_data)
 			audio_Fc = 24e3;
 	}
 
-	const std::string in_fname = "../data/1440.raw";
+	const std::string in_fname = "../data/_1440.raw";
 	std::vector<uint8_t> raw_data;
 	readRawData(in_fname, raw_data);
 	std::vector<float> iq_data;
@@ -74,10 +74,12 @@ void mono(const int mode,std::vector<float>& audio_data)
 	cout <<"size of iq_data: "<<iq_data.size()<<endl;
 
 	std::vector<float> rf_coeff;
-	impulseResponseLPF(rf_Fs, rf_Fc, rf_taps, rf_coeff, 1);
+	//impulseResponseLPF(rf_Fs, rf_Fc, rf_taps, rf_coeff, 1);
+	impulseResponseBPF(rf_Fs, 0, rf_Fc, rf_taps, rf_coeff, 1);
 
 	std::vector<float> audio_coeff;
-	impulseResponseLPF(audio_Fs, audio_Fc, audio_taps, audio_coeff, audio_upsample);
+	//impulseResponseLPF(audio_Fs, audio_Fc, audio_taps, audio_coeff, audio_upsample);
+	impulseResponseBPF(audio_Fs, 0, audio_Fc, audio_taps, audio_coeff, audio_upsample);
 	
 	std::vector<float> y;
 
