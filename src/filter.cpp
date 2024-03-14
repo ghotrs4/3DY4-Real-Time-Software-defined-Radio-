@@ -151,37 +151,24 @@ void resampleBlockConvolveFIR(int upFactor, int downFactor, std::vector<float> &
     std::vector<float> xb;
     std::vector<float> yb;
 
-
     xb = std::vector<float>(x.begin() + position, x.begin() + position + block_size); // new block
     yb.clear(); // clear output
     yb.resize((xb.size()/(float)downFactor)*upFactor, 0.0);
 
-	std::cout<<"xb size: " << xb.size() << std::endl;
-	std::cout<<"h size: " << h.size() << std::endl;
-	std::cout<<"yb size: " << yb.size() << std::endl;
-    
-    // int n = 0;
-    for(int n = 0; n < yb.size()*upFactor; n += downFactor){
+	int final_k = 0;
+    for(int n = 0; n < block_size*(upFactor == 1 ? 1 : upFactor-1); n += downFactor){
         int phase = n % upFactor;
-		// std::cout<<"phase: " << phase << std::endl;
-		// std::cout<<"n: " << n << std::endl;
         for(int k = phase; k < h.size(); k += upFactor){
             if((n-k)>=0){
                 yb[n/downFactor]+=h[k] * xb[(n-k)/upFactor];
-				// std::cout<<"h["<<phase+k<<"]: " << h[phase+k] << std::endl;
-				// std::cout<<"xb["<<(n-phase-k)/upFactor<<"]: " << xb[(n-phase-k)/upFactor] << std::endl;
-				// std::cout << "yb["<<n/downFactor<<"]: " << yb[n/downFactor] << std::endl;
             } else {
-                yb[n/downFactor] += h[k] * state[(state.size() + (n-k))/upFactor];
+                yb[n/downFactor] += h[k] * state[state.size() - ((k-n)/upFactor)];
             }
+			final_k = k;
         }
-        // g++;
     }
-	// std::cout<<"done resample"<<std::endl;
-	// std::cout<<"state size: "<<state.size()<<std::endl;
-	// std::cout<<"block size: "<<block_size<<std::endl;
+
     state = std::vector<float>(xb.end() - state.size(), xb.end());
-	std::cout<<"done state"<<std::endl;
 
     y=yb;
 }

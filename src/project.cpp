@@ -27,7 +27,7 @@ void mono(const int mode,std::vector<float>& audio_data)
 	int audio_decim;
 	int audio_upsample;
 	unsigned short int audio_taps = 101;
-	float audio_Fc = 16e3;
+	float audio_Fc;
 
 	switch(mode) {
 		case 0: //output Fs = 48k
@@ -36,6 +36,7 @@ void mono(const int mode,std::vector<float>& audio_data)
 			rf_decim = 10;
 			audio_decim = 5;
 			audio_upsample = 1;
+			audio_Fc = 24e3;
 			break;
 		case 1://output Fs = 36k
 			rf_Fs = 1.44e6;
@@ -43,6 +44,7 @@ void mono(const int mode,std::vector<float>& audio_data)
 			rf_decim = 5;
 			audio_decim = 8;
 			audio_upsample = 1;
+			audio_Fc = 18e3;
 			break;
 		case 2://output Fs = 44.1k
 			rf_Fs = 2.4e6;
@@ -52,7 +54,7 @@ void mono(const int mode,std::vector<float>& audio_data)
 			audio_upsample = 147;
 			audio_taps *= audio_upsample;
 			audio_Fs *= audio_upsample;
-			audio_Fc *= audio_upsample;
+			audio_Fc = 22.05e3;
 			break;
 		default:
 			rf_Fs = 2.4e6;
@@ -60,9 +62,10 @@ void mono(const int mode,std::vector<float>& audio_data)
 			rf_decim = 10;
 			audio_decim = 5;
 			audio_upsample = 1;
+			audio_Fc = 24e3;
 	}
 
-	const std::string in_fname = "../data/iq_samples.raw";
+	const std::string in_fname = "../data/1440.raw";
 	std::vector<uint8_t> raw_data;
 	readRawData(in_fname, raw_data);
 	std::vector<float> iq_data;
@@ -165,7 +168,7 @@ void mono(const int mode,std::vector<float>& audio_data)
 
 int main()
 {
-	int mode = 2;
+	int mode = 1;
 	std::vector<float> audio_data; //output audio sample vector
 	
 	mono(mode, audio_data);
