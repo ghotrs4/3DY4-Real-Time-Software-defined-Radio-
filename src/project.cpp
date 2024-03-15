@@ -56,6 +56,16 @@ void mono(const int mode,std::vector<float>& audio_data)
 			audio_Fs *= audio_upsample;
 			audio_Fc = 22.05e3;
 			break;
+		case 3://output Fs = 44.1k
+			rf_Fs = 1.92e6;
+			audio_Fs = 128e3;
+			rf_decim = 15;
+			audio_decim = 1280;
+			audio_upsample = 441;
+			audio_taps *= audio_upsample;
+			audio_Fs *= audio_upsample;
+			audio_Fc = 16e3;
+			break;
 		default:
 			rf_Fs = 2.4e6;
 			audio_Fs = 240e3;
@@ -65,7 +75,7 @@ void mono(const int mode,std::vector<float>& audio_data)
 			audio_Fc = 24e3;
 	}
 
-	const std::string in_fname = "../data/1440.raw";
+	const std::string in_fname = "../data/_1440.raw";
 	std::vector<uint8_t> raw_data;
 	readRawData(in_fname, raw_data);
 	std::vector<float> iq_data;
@@ -104,61 +114,46 @@ void mono(const int mode,std::vector<float>& audio_data)
 	cout <<"size of i_samples: "<<i_samples.size()<<endl;
 	cout <<"size of q_samples: "<<q_samples.size()<<endl;
 
-	std::vector<float> i_block;
-	std::vector<float> q_block;
-
 	std::vector<float> i_downsampled;
 	std::vector<float> q_downsampled;
 
 	std::vector<float> audio_filt;
 	std::vector<float> audio_block;
-	cout<<"block size"<<block_size<<endl;
-	cout<<"begin debug: ..."<<endl;
-	cout<<"rf_coeff sample 0: "<<rf_coeff[0]<<endl;
+
+	//stereo variables
+	std::vector<float> pilot_coeff;
+	std::vector<float> stereo_coeff;
+	float pilot_Fb=18.5e3;
+	float pilot_Fe=19.5e3;
+	float stereo_Fb=22e3;
+	float stereo_Fe=54e3;
+	unsigned short int num_taps_stereo=101;
+
+	impulseResponseBPF(audio_Fs,pilot_Fb, pilot_Fe, num_taps_stereo, pilot_coeff, 1);//gain of 1
+	impulseResponseBPF(audio_Fs,stereo_Fb, stereo_Fe, num_taps_stereo, stereo_coeff, 1);//gain of 1
+
+
 	while (position+block_size<iq_data.size()) {//touched
 		cout<<"block number: "<<position/block_size<<endl;
 
-		// for(int i=0;i<5;i++){
-		// 	cout<<"i block samples: "<<i_samples[i+position/2]<<endl;
-		// }
-		// for(int i=0;i<5;i++){
-		// 	cout<<"q block samples: "<<q_samples[i+position/2]<<endl;
-		// }
-		blockConvolveFIR(i_block, i_samples, rf_coeff, i_state_rf, position/2, block_size/2);
-		blockConvolveFIR(q_block, q_samples, rf_coeff, q_state_rf, position/2, block_size/2);
-		// for(int i=0;i<5;i++){
-		// 	cout<<"i block convolved: "<<i_block[i]<<endl;
-		// }
-		// for(int i=0;i<5;i++){
-		// 	cout<<"q block convolved: "<<q_block[i]<<endl;
-		// }
-		downsample(i_block, rf_decim, i_downsampled);
-		downsample(q_block, rf_decim, q_downsampled);
-		// for(int i=0;i<5;i++){
-		// 	cout<<"i down samples: "<<i_downsampled[i]<<endl;
-		// }
-		// for(int i=0;i<5;i++){
-		// 	cout<<"q down samples: "<<q_downsampled[i]<<endl;
-		// }
-		fmDemodArctan(i_downsampled, q_downsampled, prev_I, prev_Q, fm_demod);
-		// for(int i=0;i<5;i++){
-		// 	cout<<"fmdemod samples: "<<fm_demod[i]<<endl;
-		// }
-		cout<<"size of fmdemod: "<<fm_demod.size()<<endl;
-		// cout<<"size of block size: "<<block_size/rf_decim<<endl;
-		// cout << "wtf" << endl;
-		// for(int i=0;i<5;i++){
-		// 	cout<<"audio filt samples: "<<audio_filt[i]<<endl;
-		// }
+		downsampleBlockConvolveFIR(rf_decim, i_downsampled, i_samples, rf_coeff, i_state_rf, position/2, block_size/2);
+		downsampleBlockConvolveFIR(rf_decim, q_downsampled, q_samples, rf_coeff, q_state_rf, position/2, block_size/2);
 
-		// for(int i=0;i<5;i++){
-		// 	cout<<"audio block samples: "<<audio_block[i]<<endl;
-		// }
-		// downsampleBlockConvolveFIR(audio_decim, audio_block, fm_demod, audio_coeff, state_audio, 0, fm_demod.size());
+		fmDemodArctan(i_downsampled, q_downsampled, prev_I, prev_Q, fm_demod);
+
 		resampleBlockConvolveFIR(audio_upsample, audio_decim, audio_block, fm_demod, audio_coeff, state_audio, 0, fm_demod.size());
 		if (position != 0) {
 			audio_data.insert(audio_data.end(), audio_block.begin(), audio_block.end());
 		}
+
+		//----------start stereo------------
+
+		
+		// float feedbackI = 1.0;
+		// float feedbackQ = 0.0;
+		// std::vector<float> PLLin;
+		// std::vector<float> ncoOut;
+
 
 		position += block_size;
 		cout<<"position+block_size: "<<position+block_size<<endl;
@@ -166,10 +161,20 @@ void mono(const int mode,std::vector<float>& audio_data)
 	}
 }
 
-void stereo(const int mode,std::vector<float>& audio_data)
-{
+// void stereo(const int mode,std::vector<float>& audio_data)
+// {
+	
+// 	fmPLL(std::vector<float> PLLin, float freq, float Fs, float ncoScale, float phaseAdjust, float normBandwidth,std::vector<float> state, std::vector<float> &ncoOut, float feedbackI, float feedbackQ);
+// }
+// void frontend(const int mode,std::vector<float>& audio_data)
+// {
+// 	float feedbackI = 1.0;
+// 	float feedbackQ = 0.0;
+// 	std::vector<float> PLLin;
+// 	std::vector<float> ncoOut;
+// 	fmPLL(std::vector<float> PLLin, float freq, float Fs, float ncoScale, float phaseAdjust, float normBandwidth,std::vector<float> state, std::vector<float> &ncoOut, float feedbackI, float feedbackQ);
+// }
 
-}
 
 int main()
 {

@@ -96,7 +96,7 @@ void blockConvolveFIR(std::vector<float> &y, const std::vector<float> x, const s
 	y=yb;
 }
 
-void fmDemodArctan(std::vector<float> I, std::vector<float> Q, float &prev_I, float &prev_Q, std::vector<float>& fm_demod) {
+void fmDemodArctan(std::vector<float> &I, std::vector<float> &Q, float &prev_I, float &prev_Q, std::vector<float>& fm_demod) {
 	fm_demod.resize(I.size());
 	for(int k=0;k<I.size();k++){
 		if(k>0){
@@ -128,7 +128,7 @@ void upsample(const std::vector<float> data, size_t factor, std::vector<float> &
         }
     }
 }
-void downsampleBlockConvolveFIR(size_t factor, std::vector<float> &y, const std::vector<float> x, const std::vector<float> h, std::vector<float> &state, int position, int block_size)
+void downsampleBlockConvolveFIR(int factor, std::vector<float> &y, const std::vector<float> &x, const std::vector<float> &h, std::vector<float> &state, int position, int block_size)
 {
     // allocate memory for the output (filtered) data
     y.clear(); //y.resize(x.size()+h.size()-1, 0.0);
@@ -163,7 +163,7 @@ void downsampleBlockConvolveFIR(size_t factor, std::vector<float> &y, const std:
 
     y=yb;
 }
-void resampleBlockConvolveFIR(int upFactor, int downFactor, std::vector<float> &y, const std::vector<float> x, const std::vector<float> h, std::vector<float> &state, int position, int block_size)
+void resampleBlockConvolveFIR(int upFactor, int downFactor, std::vector<float> &y, const std::vector<float> &x, const std::vector<float> &h, std::vector<float> &state, int position, int block_size)
 {
     // allocate memory for the output (filtered) data
     y.clear(); //y.resize(x.size()+h.size()-1, 0.0);
@@ -191,4 +191,50 @@ void resampleBlockConvolveFIR(int upFactor, int downFactor, std::vector<float> &
     state = std::vector<float>(xb.end() - state.size(), xb.end());
 
     y=yb;
+}
+void fmPLL(std::vector<float> PLLin, float freq, float Fs, float ncoScale, float phaseAdjust, float normBandwidth,std::vector<float> state, std::vector<float> &ncoOut, float feedbackI, float feedbackQ){
+	float Cp = 2.666;
+	float Ci = 3.555;
+
+	float Kp = normBandwidth*Cp;
+	float Ki = normBandwidth*normBandwidth*Ci;
+
+	ncoOut.clear();
+	ncoOut.resize(PLLin.size()+1);
+
+	float integrator = 0.0;
+	float phaseEst = 0.0;
+	ncoOut[0] = 1.0;
+	int trigOffset = 0;
+
+	float errorI, errorQ, errorD;
+	float trigArg;
+
+	for (int k = 0; k < PLLin.size(); k++) {
+		// phase detector
+		errorI = PLLin[k] * (+feedbackI);
+		errorQ = PLLin[k] * (-feedbackQ);
+
+		// four-quadrant arctangent discriminator for phase error detection
+		errorD = atan(errorQ/errorI);
+
+		// loop filter
+		integrator += Ki*errorD;
+
+		// update phase estimate
+		phaseEst += Kp*errorD + integrator;
+
+		// internal oscillator
+		trigOffset++;
+		trigArg = 2*PI*(freq/Fs)*(trigOffset) + phaseEst;
+		feedbackI = cos(trigArg);
+		feedbackQ = sin(trigArg);
+		ncoOut[k+1] = cos(trigArg*ncoScale + phaseAdjust);
+	}
+
+
+
+	// for stereo only the in-phase NCO component should be returned
+	// for block processing you should also return the state
+	// for RDS add also the quadrature NCO component to the output
 }
