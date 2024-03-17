@@ -16,7 +16,7 @@ Ontario, Canada
 
 using namespace std;
 
-void mono(const int mode,std::vector<float>& audio_data)
+void mono(const int mode,std::vector<float>& audio_data, std::vector<float>& stereo_data_left,std::vector<float>& stereo_data_right)
 {
 	float rf_Fs;
 	float rf_Fc = 100e3;
@@ -75,7 +75,7 @@ void mono(const int mode,std::vector<float>& audio_data)
 			audio_Fc = 24e3;
 	}
 
-	const std::string in_fname = "../data/_1440.raw";
+	const std::string in_fname = "../data/iq_samples.raw";
 	std::vector<uint8_t> raw_data;
 	readRawData(in_fname, raw_data);
 	std::vector<float> iq_data;
@@ -123,17 +123,48 @@ void mono(const int mode,std::vector<float>& audio_data)
 	//stereo variables
 	std::vector<float> pilot_coeff;
 	std::vector<float> stereo_coeff;
+
+	std::vector<float> pilot_filtered;
+	std::vector<float> stereo_filtered;
 	float pilot_Fb=18.5e3;
 	float pilot_Fe=19.5e3;
 	float stereo_Fb=22e3;
 	float stereo_Fe=54e3;
 	unsigned short int num_taps_stereo=101;
 
+	float pll_freq=19e3;
+	float ncoScale=1.0;
+	float phaseAdjust=0;
+	float normBandwidth=0.01;
+	float feedbackI=1.0;
+	float feedbackQ=0.0;
+	float integrator=0;
+	float phaseEst=0;
+	std::vector<float> ncoOut;
+
+	std::vector<float> stereo_mixed;
+	std::vector<float> stereo_lowpass;
+	std::vector<float> stereo_lowpass_state;
+	
 	impulseResponseBPF(audio_Fs,pilot_Fb, pilot_Fe, num_taps_stereo, pilot_coeff, 1);//gain of 1
 	impulseResponseBPF(audio_Fs,stereo_Fb, stereo_Fe, num_taps_stereo, stereo_coeff, 1);//gain of 1
 
+	std::vector<float> pilot_state;
+	std::vector<float> stereo_state;
+	std::vector<float> mono_delay_state;
+	
+	pilot_state.resize(pilot_coeff.size()-1, 0.0);
+	stereo_state.resize(stereo_coeff.size()-1, 0.0);
+	stereo_lowpass_state.resize(audio_coeff.size()-1, 0.0);
+	mono_delay_state.resize(audio_coeff.size()-1, 0.0);
 
-	while (position+block_size<iq_data.size()) {//touched
+	std::vector<float> mono_delay;
+	
+	std::vector<float> stereo_left;
+	std::vector<float> stereo_right;
+	std::vector<float> stereo_block;
+
+	while (position<5*block_size) {//touched (First 5 blocks)
 		cout<<"block number: "<<position/block_size<<endl;
 
 		downsampleBlockConvolveFIR(rf_decim, i_downsampled, i_samples, rf_coeff, i_state_rf, position/2, block_size/2);
@@ -141,51 +172,60 @@ void mono(const int mode,std::vector<float>& audio_data)
 
 		fmDemodArctan(i_downsampled, q_downsampled, prev_I, prev_Q, fm_demod);
 
+		//begin mono
 		resampleBlockConvolveFIR(audio_upsample, audio_decim, audio_block, fm_demod, audio_coeff, state_audio, 0, fm_demod.size());
-		if (position != 0) {
-			audio_data.insert(audio_data.end(), audio_block.begin(), audio_block.end());
-		}
-
+		delayBlock(audio_block, mono_delay_state, mono_delay);
 		//----------start stereo------------
-
 		
-		// float feedbackI = 1.0;
-		// float feedbackQ = 0.0;
-		// std::vector<float> PLLin;
-		// std::vector<float> ncoOut;
+		//isolate pilot and stereo channel
+		
+		blockConvolveFIR(pilot_filtered, fm_demod, pilot_coeff, pilot_state, 0, fm_demod.size());
+		blockConvolveFIR(stereo_filtered, fm_demod, stereo_coeff, stereo_state, 0, fm_demod.size());
 
+		//PLL + NCO to recover carrier (ie pilot tone phase shift to 38kHz)
+		fmPLL(pilot_filtered, pll_freq, audio_Fs, ncoScale, phaseAdjust, normBandwidth, ncoOut, feedbackI, feedbackQ, integrator, phaseEst);
 
+		//mix carrier + stereo signal
+		pointwiseMultiply(ncoOut, stereo_filtered, stereo_mixed);//touched
+		// for(int i=0;i<5;i++){
+		// 	cout<<"pw multiply output: "<<stereo_mixed[i]<<endl;
+		// 	cout<<"nco stereo output: "<<ncoOut[i]<<endl;
+		// 	cout<<"stereo_filtered: "<<stereo_filtered[i]<<endl;
+		// 	cout<<"pilot_filtered: "<<pilot_filtered[i]<<endl;
+		// }
+		
+		//downsample and convolve to achieve desired output sample rate (ie 48k for mode 0)
+		downsampleBlockConvolveFIR(audio_decim, stereo_lowpass, stereo_mixed, audio_coeff, stereo_lowpass_state, 0, stereo_mixed.size());
+
+		//output stereo signal
+		pointwiseAdd(mono_delay, stereo_mixed, stereo_left);
+		pointwiseSubtract(mono_delay, stereo_mixed, stereo_right);
+		//prepare new block
+		
+		//cout<<"position+block_size: "<<position+block_size<<endl;
+		//cout<<"iq_data.size(): "<<iq_data.size()<<endl;
+		if (position > 3*block_size) {//output  mono and stereo
+			audio_data.insert(audio_data.end(), audio_block.begin(), audio_block.end());
+			stereo_data_left.insert(stereo_data_left.end(), stereo_left.begin(), stereo_left.end());
+			stereo_data_right.insert(stereo_data_right.end(), stereo_right.begin(), stereo_right.end());
+		}
 		position += block_size;
-		cout<<"position+block_size: "<<position+block_size<<endl;
-		cout<<"iq_data.size(): "<<iq_data.size()<<endl;
 	}
 }
 
-// void stereo(const int mode,std::vector<float>& audio_data)
-// {
-	
-// 	fmPLL(std::vector<float> PLLin, float freq, float Fs, float ncoScale, float phaseAdjust, float normBandwidth,std::vector<float> state, std::vector<float> &ncoOut, float feedbackI, float feedbackQ);
-// }
-// void frontend(const int mode,std::vector<float>& audio_data)
-// {
-// 	float feedbackI = 1.0;
-// 	float feedbackQ = 0.0;
-// 	std::vector<float> PLLin;
-// 	std::vector<float> ncoOut;
-// 	fmPLL(std::vector<float> PLLin, float freq, float Fs, float ncoScale, float phaseAdjust, float normBandwidth,std::vector<float> state, std::vector<float> &ncoOut, float feedbackI, float feedbackQ);
-// }
-
-
 int main()
 {
-	int mode = 1;
+	int mode = 0;
 	std::vector<float> audio_data; //output audio sample vector
-	
-	mono(mode, audio_data);
-	cout <<"size of output: "<<audio_data.size()<<endl;
+	std::vector<float> stereo_data_left;
+	std::vector<float> stereo_data_right;
+
+	mono(mode, audio_data, stereo_data_left, stereo_data_right);
 
 	const std::string out_fname = "../data/float32samples.bin";
-	writeBinData(out_fname,audio_data);
+	const std::string out_fname_stereo = "../data/float32samplesStereo.bin";
 
+	writeBinData(out_fname,audio_data);
+	write_audio_data(out_fname_stereo, stereo_data_left, stereo_data_right);
 	return 0;
 }
