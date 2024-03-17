@@ -29,4 +29,6 @@ void readRawData(const std::string in_fname, std::vector<uint8_t> &raw_data);
 
 void convertRaw(const std::vector<uint8_t> raw_data, std::vector<float> &iq_data);
 
+void write_audio_data(const std::string out_fname, const std::vector<float> &audio_left, const std::vector<float> &audio_right);
+
 #endif // DY4_IOFUNC_H

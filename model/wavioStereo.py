@@ -45,27 +45,25 @@ if __name__ == "__main__":
 
 	# input binary file name (from where samples are read into Python)
 	# the default is JUST a SELF-CHECK; of course, change filenames as needed
-	in_fname = "../data/float32samples.bin"
+	in_fname = "../data/float32samplesStereo.bin"
 	# in_fname = "../data/float32filtered.bin"
 	# read data from a binary file (assuming 32-bit floats)
 	float_data = np.fromfile(in_fname, dtype='float32')
-	# for i in range(25):
-	# 	print(float_data[i])
 	print(" Read binary data from \"" + in_fname + "\" in float32 format")
 
-	# # we assume below there are two audio channels where data is
-	# # interleaved, i.e., left channel sample, right channel sample, ...
-	# # for mono .wav files the reshaping below is unnecessary
-	# reshaped_data = np.reshape(float_data, (-1, 2))
+	# we assume below there are two audio channels where data is
+	# interleaved, i.e., left channel sample, right channel sample, ...
+	# for mono .wav files the reshaping below is unnecessary
+	reshaped_data = np.reshape(float_data, (-1, 2))
 
-	# # self-check if the read and write are working correctly
-	# # not needed while working with data generated from C++
+	# self-check if the read and write are working correctly
+	# not needed while working with data generated from C++
 	# print(" Are the two data sets identical ? " +
 	# 		str(np.array_equal(audio_data,reshaped_data)))
 
 	wavfile.write("../data/audio_processed.wav", \
 				int(48e3), \
-				np.int16((float_data/2)*32767))
+				reshaped_data.astype(np.int16))
 
 	# note: we can also dump audio data in other formats, if needed
 	# audio_data.astype('int16').tofile('int16samples.bin')
