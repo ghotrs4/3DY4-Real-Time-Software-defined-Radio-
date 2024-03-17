@@ -93,11 +93,12 @@ void blockConvolveFIR(std::vector<float> &y, const std::vector<float> &x, const 
 void fmDemodArctan(std::vector<float> &I, std::vector<float> &Q, float &prev_I, float &prev_Q, std::vector<float>& fm_demod) {
 	fm_demod.resize(I.size());
 	for(int k=0;k<I.size();k++){
+		float param = (I[k] == 0 && Q[k] == 0) ? 1 : (pow(I[k],2)+pow(Q[k],2));
 		if(k>0){
-			fm_demod[k] = (I[k]*Q[k-1]-Q[k]*I[k-1])/(pow(I[k],2)+pow(Q[k],2));
+			fm_demod[k] = (I[k]*Q[k-1]-Q[k]*I[k-1])/param;
 		}
 		else{
-			fm_demod[k] = (I[k]*prev_Q-Q[k]*prev_I)/(pow(I[k],2)+pow(Q[k],2));
+			fm_demod[k] = (I[k]*prev_Q-Q[k]*prev_I)/param;
 		}
 	}
 	prev_I = I[I.size()-1];

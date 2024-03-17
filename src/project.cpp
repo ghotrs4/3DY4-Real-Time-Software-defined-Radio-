@@ -164,7 +164,7 @@ void mono(const int mode,std::vector<float>& audio_data, std::vector<float>& ste
 	std::vector<float> stereo_right;
 	std::vector<float> stereo_block;
 
-	while (position<5*block_size) {//touched (First 5 blocks)
+	while (position+block_size<iq_data.size()) {
 		cout<<"block number: "<<position/block_size<<endl;
 
 		downsampleBlockConvolveFIR(rf_decim, i_downsampled, i_samples, rf_coeff, i_state_rf, position/2, block_size/2);
@@ -204,7 +204,7 @@ void mono(const int mode,std::vector<float>& audio_data, std::vector<float>& ste
 		
 		//cout<<"position+block_size: "<<position+block_size<<endl;
 		//cout<<"iq_data.size(): "<<iq_data.size()<<endl;
-		if (position > 3*block_size) {//output  mono and stereo
+		if (position > 0) {//output mono and stereo
 			audio_data.insert(audio_data.end(), audio_block.begin(), audio_block.end());
 			stereo_data_left.insert(stereo_data_left.end(), stereo_left.begin(), stereo_left.end());
 			stereo_data_right.insert(stereo_data_right.end(), stereo_right.begin(), stereo_right.end());
