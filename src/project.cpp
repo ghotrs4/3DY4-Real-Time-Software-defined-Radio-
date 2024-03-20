@@ -184,6 +184,9 @@ void mono(const int mode,std::vector<float>& audio_data, std::vector<float>& ste
 
 		//PLL + NCO to recover carrier (ie pilot tone phase shift to 38kHz)
 		fmPLL(pilot_filtered, pll_freq, audio_Fs, ncoScale, phaseAdjust, normBandwidth, ncoOut, feedbackI, feedbackQ, integrator, phaseEst);
+		// for (int i = 0; i < 5; i++) {
+		// 	cout << "pilot_filtered"
+		// }
 
 		//mix carrier + stereo signal
 		pointwiseMultiply(ncoOut, stereo_filtered, stereo_mixed);//touched
@@ -210,6 +213,7 @@ void mono(const int mode,std::vector<float>& audio_data, std::vector<float>& ste
 			stereo_data_right.insert(stereo_data_right.end(), stereo_right.begin(), stereo_right.end());
 		}
 		position += block_size;
+		// cout<<stereo_data_left
 	}
 }
 

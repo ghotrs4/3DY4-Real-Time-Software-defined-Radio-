@@ -205,8 +205,17 @@ void fmPLL(const std::vector<float> &PLLin, const float freq, const float Fs, co
 
 	for (int k = 0; k < PLLin.size(); k++) {
 		// phase detector
-		errorI = PLLin[k] * (+feedbackI);
-		errorQ = PLLin[k] * (-feedbackQ);
+		errorI = (PLLin[k] == 0 ? 1 : PLLin[k]) * (feedbackI);
+		errorQ = (PLLin[k] == 0 ? 1 : PLLin[k]) * (-1*feedbackQ);
+
+		// if (k == 0) {
+		// 	std::cout<<"errorI: "<<errorI<<std::endl;
+		// }
+
+		// if (feedbackI != feedbackI) {
+		// 	std::cout<<"feedbackI touched, k = "<<k<<std::endl;
+		// 	exit(0);
+		// }
 
 		// four-quadrant arctangent discriminator for phase error detection
 		errorD = atan(errorQ/errorI);
@@ -216,13 +225,29 @@ void fmPLL(const std::vector<float> &PLLin, const float freq, const float Fs, co
 
 		// update phase estimate
 		phaseEst += Kp*errorD + integrator;
+		// if (errorQ != errorQ) {
+		// 	std::cout<<"errorQ touched"<<std::endl;
+		// }
+		// if (errorI != errorI) {
+		// 	std::cout<<"errorI touched"<<std::endl;
+		// }
 
 		// internal oscillator
 		trigOffset++;
 		trigArg = 2*PI*(freq/Fs)*(trigOffset) + phaseEst;
+		if (phaseEst != phaseEst) {
+			std::cout<<"phaseEst touched, k = "<<k<<std::endl;
+		}
+		// if (trigOffset != trigOffset) {
+		// 	std::cout<<"trigOffset touched"<<std::endl;
+		// }
+		// if (phaseEst != phaseEst) {
+		// 	std::cout<<"phaseEst touched"<<std::endl;
+		// }
 		feedbackI = cos(trigArg);
 		feedbackQ = sin(trigArg);
 		ncoOut[k+1] = cos(trigArg*ncoScale + phaseAdjust);
+		// std::cout<<"ncoOut["<<k+1<<"]: "<<ncoOut[k+1]<<std::endl;
 	}
 
 
