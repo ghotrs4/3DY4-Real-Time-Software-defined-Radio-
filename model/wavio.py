@@ -57,7 +57,7 @@ if __name__ == "__main__":
 
 	# input binary file name (from where samples are read into Python)
 	# the default is JUST a SELF-CHECK; of course, change filenames as needed
-	in_fname = "../data/float32samples.bin" if not sys.argv[1] == 'stereo' else "../data/float32samplesStereo.bin"
+	in_fname = "../data/float32samples.bin" if sys.argv[1] == 'mono' else "../data/float32samplesStereo.bin"
 	# in_fname = "../data/float32filtered.bin"
 	# read data from a binary file (assuming 32-bit floats)
 	float_data = np.fromfile(in_fname, dtype='float32')

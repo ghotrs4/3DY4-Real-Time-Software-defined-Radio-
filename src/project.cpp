@@ -75,7 +75,7 @@ void mono(const int mode,std::vector<float>& audio_data, std::vector<float>& ste
 			audio_Fc = 24e3;
 	}
 
-	const std::string in_fname = "../data/iq_samples.raw";
+	const std::string in_fname = "../data/stereo_l0_r9.raw";
 	std::vector<uint8_t> raw_data;
 	readRawData(in_fname, raw_data);
 	std::vector<float> iq_data;
@@ -132,15 +132,18 @@ void mono(const int mode,std::vector<float>& audio_data, std::vector<float>& ste
 	float stereo_Fe=54e3;
 	unsigned short int num_taps_stereo=101;
 
+	float stereoBandwidth = 15e3; // bandwidth of stereo signal
+
 	float pll_freq=19e3;
-	float ncoScale=1.0;
+	float ncoScale=2.0;
 	float phaseAdjust=0;
-	float normBandwidth=0.01;
+	float normBandwidth=stereoBandwidth*(1/audio_Fs); // normBandwidth = Bn*T
 	float feedbackI=1.0;
 	float feedbackQ=0.0;
 	float integrator=0;
 	float phaseEst=0;
 	float trigOffset=0;
+	float nco_state=1.0;
 	std::vector<float> ncoOut;
 
 	std::vector<float> stereo_mixed;
@@ -184,7 +187,7 @@ void mono(const int mode,std::vector<float>& audio_data, std::vector<float>& ste
 		blockConvolveFIR(stereo_filtered, fm_demod, stereo_coeff, stereo_state, 0, fm_demod.size());
 
 		//PLL + NCO to recover carrier (ie pilot tone phase shift to 38kHz)
-		fmPLL(pilot_filtered, pll_freq, audio_Fs, ncoScale, phaseAdjust, normBandwidth, ncoOut, feedbackI, feedbackQ, integrator, phaseEst, trigOffset);
+		fmPLL(pilot_filtered, pll_freq, audio_Fs, ncoScale, phaseAdjust, normBandwidth, ncoOut, feedbackI, feedbackQ, integrator, phaseEst, trigOffset, nco_state);
 		// for (int i = 0; i < 5; i++) {
 		// 	cout << "pilot_filtered"
 		// }

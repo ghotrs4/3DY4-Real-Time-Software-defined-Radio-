@@ -187,7 +187,7 @@ void resampleBlockConvolveFIR(int upFactor, int downFactor, std::vector<float> &
 
     y=yb;
 }
-void fmPLL(const std::vector<float> &PLLin, const float freq, const float Fs, const float ncoScale, const float phaseAdjust, const float normBandwidth, std::vector<float> &ncoOut, float &feedbackI, float &feedbackQ, float &integrator, float &phaseEst, float &trigOffset){
+void fmPLL(const std::vector<float> &PLLin, const float freq, const float Fs, const float ncoScale, const float phaseAdjust, const float normBandwidth, std::vector<float> &ncoOut, float &feedbackI, float &feedbackQ, float &integrator, float &phaseEst, float &trigOffset, float &nco_state){
 	float Cp = 2.666;
 	float Ci = 3.555;
 
@@ -197,7 +197,7 @@ void fmPLL(const std::vector<float> &PLLin, const float freq, const float Fs, co
 	ncoOut.clear();
 	ncoOut.resize(PLLin.size()+1);
 
-	ncoOut[0] = 1.0;
+	ncoOut[0] = nco_state;
 	// int trigOffset = 0;
 
 	float errorI, errorQ, errorD;
@@ -209,7 +209,7 @@ void fmPLL(const std::vector<float> &PLLin, const float freq, const float Fs, co
 		errorQ = (PLLin[k] == 0 ? 1 : PLLin[k]) * (-1*feedbackQ);
 
 		// four-quadrant arctangent discriminator for phase error detection
-		errorD = atan(errorQ/errorI);
+		errorD = atan2(errorQ,errorI);
 
 		// loop filter
 		integrator += Ki*errorD;
@@ -228,6 +228,8 @@ void fmPLL(const std::vector<float> &PLLin, const float freq, const float Fs, co
 		feedbackQ = sin(trigArg);
 		ncoOut[k+1] = cos(trigArg*ncoScale + phaseAdjust);
 	}
+
+	nco_state = ncoOut[PLLin.size()-1];
 
 	// for stereo only the in-phase NCO component should be returned
 	// for block processing you should also return the state
