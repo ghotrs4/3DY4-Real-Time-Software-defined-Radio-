@@ -187,7 +187,7 @@ void resampleBlockConvolveFIR(int upFactor, int downFactor, std::vector<float> &
 
     y=yb;
 }
-void fmPLL(const std::vector<float> &PLLin, const float freq, const float Fs, const float ncoScale, const float phaseAdjust, const float normBandwidth, std::vector<float> &ncoOut, float &feedbackI, float &feedbackQ, float &integrator, float &phaseEst){
+void fmPLL(const std::vector<float> &PLLin, const float freq, const float Fs, const float ncoScale, const float phaseAdjust, const float normBandwidth, std::vector<float> &ncoOut, float &feedbackI, float &feedbackQ, float &integrator, float &phaseEst, float &trigOffset){
 	float Cp = 2.666;
 	float Ci = 3.555;
 
@@ -198,7 +198,7 @@ void fmPLL(const std::vector<float> &PLLin, const float freq, const float Fs, co
 	ncoOut.resize(PLLin.size()+1);
 
 	ncoOut[0] = 1.0;
-	int trigOffset = 0;
+	// int trigOffset = 0;
 
 	float errorI, errorQ, errorD;
 	float trigArg;
@@ -208,15 +208,6 @@ void fmPLL(const std::vector<float> &PLLin, const float freq, const float Fs, co
 		errorI = (PLLin[k] == 0 ? 1 : PLLin[k]) * (feedbackI);
 		errorQ = (PLLin[k] == 0 ? 1 : PLLin[k]) * (-1*feedbackQ);
 
-		// if (k == 0) {
-		// 	std::cout<<"errorI: "<<errorI<<std::endl;
-		// }
-
-		// if (feedbackI != feedbackI) {
-		// 	std::cout<<"feedbackI touched, k = "<<k<<std::endl;
-		// 	exit(0);
-		// }
-
 		// four-quadrant arctangent discriminator for phase error detection
 		errorD = atan(errorQ/errorI);
 
@@ -225,12 +216,6 @@ void fmPLL(const std::vector<float> &PLLin, const float freq, const float Fs, co
 
 		// update phase estimate
 		phaseEst += Kp*errorD + integrator;
-		// if (errorQ != errorQ) {
-		// 	std::cout<<"errorQ touched"<<std::endl;
-		// }
-		// if (errorI != errorI) {
-		// 	std::cout<<"errorI touched"<<std::endl;
-		// }
 
 		// internal oscillator
 		trigOffset++;
@@ -238,19 +223,11 @@ void fmPLL(const std::vector<float> &PLLin, const float freq, const float Fs, co
 		if (phaseEst != phaseEst) {
 			std::cout<<"phaseEst touched, k = "<<k<<std::endl;
 		}
-		// if (trigOffset != trigOffset) {
-		// 	std::cout<<"trigOffset touched"<<std::endl;
-		// }
-		// if (phaseEst != phaseEst) {
-		// 	std::cout<<"phaseEst touched"<<std::endl;
-		// }
+
 		feedbackI = cos(trigArg);
 		feedbackQ = sin(trigArg);
 		ncoOut[k+1] = cos(trigArg*ncoScale + phaseAdjust);
-		// std::cout<<"ncoOut["<<k+1<<"]: "<<ncoOut[k+1]<<std::endl;
 	}
-
-
 
 	// for stereo only the in-phase NCO component should be returned
 	// for block processing you should also return the state
@@ -292,7 +269,6 @@ void pointwiseAdd(const std::vector<float>&block1,const std::vector<float>&block
 	// }
 	for(int i=0;i<block1.size();i++){
 		output[i] = block1[i]+block2[i];
-
 	}
 }
 void pointwiseSubtract(const std::vector<float>&block1,const std::vector<float>&block2,std::vector<float>&output){

@@ -36,7 +36,7 @@ void mono(const int mode,std::vector<float>& audio_data, std::vector<float>& ste
 			rf_decim = 10;
 			audio_decim = 5;
 			audio_upsample = 1;
-			audio_Fc = 24e3;
+			audio_Fc = 16e3;
 			break;
 		case 1://output Fs = 36k
 			rf_Fs = 1.44e6;
@@ -44,7 +44,7 @@ void mono(const int mode,std::vector<float>& audio_data, std::vector<float>& ste
 			rf_decim = 5;
 			audio_decim = 8;
 			audio_upsample = 1;
-			audio_Fc = 18e3;
+			audio_Fc = 16e3;
 			break;
 		case 2://output Fs = 44.1k
 			rf_Fs = 2.4e6;
@@ -54,7 +54,7 @@ void mono(const int mode,std::vector<float>& audio_data, std::vector<float>& ste
 			audio_upsample = 147;
 			audio_taps *= audio_upsample;
 			audio_Fs *= audio_upsample;
-			audio_Fc = 22.05e3;
+			audio_Fc = 16e3;
 			break;
 		case 3://output Fs = 44.1k
 			rf_Fs = 1.92e6;
@@ -140,6 +140,7 @@ void mono(const int mode,std::vector<float>& audio_data, std::vector<float>& ste
 	float feedbackQ=0.0;
 	float integrator=0;
 	float phaseEst=0;
+	float trigOffset=0;
 	std::vector<float> ncoOut;
 
 	std::vector<float> stereo_mixed;
@@ -183,7 +184,7 @@ void mono(const int mode,std::vector<float>& audio_data, std::vector<float>& ste
 		blockConvolveFIR(stereo_filtered, fm_demod, stereo_coeff, stereo_state, 0, fm_demod.size());
 
 		//PLL + NCO to recover carrier (ie pilot tone phase shift to 38kHz)
-		fmPLL(pilot_filtered, pll_freq, audio_Fs, ncoScale, phaseAdjust, normBandwidth, ncoOut, feedbackI, feedbackQ, integrator, phaseEst);
+		fmPLL(pilot_filtered, pll_freq, audio_Fs, ncoScale, phaseAdjust, normBandwidth, ncoOut, feedbackI, feedbackQ, integrator, phaseEst, trigOffset);
 		// for (int i = 0; i < 5; i++) {
 		// 	cout << "pilot_filtered"
 		// }
@@ -201,8 +202,8 @@ void mono(const int mode,std::vector<float>& audio_data, std::vector<float>& ste
 		downsampleBlockConvolveFIR(audio_decim, stereo_lowpass, stereo_mixed, audio_coeff, stereo_lowpass_state, 0, stereo_mixed.size());
 
 		//output stereo signal
-		pointwiseAdd(mono_delay, stereo_mixed, stereo_left);
-		pointwiseSubtract(mono_delay, stereo_mixed, stereo_right);
+		pointwiseAdd(stereo_lowpass, mono_delay, stereo_left);
+		pointwiseSubtract(stereo_lowpass, mono_delay, stereo_right);
 		//prepare new block
 		
 		//cout<<"position+block_size: "<<position+block_size<<endl;
