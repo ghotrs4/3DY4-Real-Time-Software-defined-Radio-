@@ -258,7 +258,7 @@ void pointwiseMultiply(const std::vector<float>&block1,const std::vector<float>&
 	output.resize(size);
 
 	for(int i=0;i<size;i++){
-		output[i] = block1[i]*block2[i];
+		output[i] = block1[i]*block2[i]*2; //add gain to each element
 	}
 }
 void pointwiseAdd(const std::vector<float>&block1,const std::vector<float>&block2,std::vector<float>&output){

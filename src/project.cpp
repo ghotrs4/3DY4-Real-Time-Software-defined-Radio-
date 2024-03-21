@@ -137,7 +137,7 @@ void mono(const int mode,std::vector<float>& audio_data, std::vector<float>& ste
 	float pll_freq=19e3;
 	float ncoScale=2.0;
 	float phaseAdjust=0;
-	float normBandwidth=stereoBandwidth*(1/audio_Fs); // normBandwidth = Bn*T
+	float normBandwidth=0.01;// normBandwidth = Bn*T, touched
 	float feedbackI=1.0;
 	float feedbackQ=0.0;
 	float integrator=0;
@@ -160,7 +160,7 @@ void mono(const int mode,std::vector<float>& audio_data, std::vector<float>& ste
 	pilot_state.resize(pilot_coeff.size()-1, 0.0);
 	stereo_state.resize(stereo_coeff.size()-1, 0.0);
 	stereo_lowpass_state.resize(audio_coeff.size()-1, 0.0);
-	mono_delay_state.resize(audio_coeff.size()-1, 0.0);
+	mono_delay_state.resize((audio_coeff.size())/2, 0.0);
 
 	std::vector<float> mono_delay;
 	
@@ -177,8 +177,8 @@ void mono(const int mode,std::vector<float>& audio_data, std::vector<float>& ste
 		fmDemodArctan(i_downsampled, q_downsampled, prev_I, prev_Q, fm_demod);
 
 		//begin mono
-		resampleBlockConvolveFIR(audio_upsample, audio_decim, audio_block, fm_demod, audio_coeff, state_audio, 0, fm_demod.size());
-		delayBlock(audio_block, mono_delay_state, mono_delay);
+		delayBlock(fm_demod, mono_delay_state, mono_delay);
+		resampleBlockConvolveFIR(audio_upsample, audio_decim, audio_block, mono_delay, audio_coeff, state_audio, 0, fm_demod.size());
 		//----------start stereo------------
 		
 		//isolate pilot and stereo channel
@@ -187,7 +187,29 @@ void mono(const int mode,std::vector<float>& audio_data, std::vector<float>& ste
 		blockConvolveFIR(stereo_filtered, fm_demod, stereo_coeff, stereo_state, 0, fm_demod.size());
 
 		//PLL + NCO to recover carrier (ie pilot tone phase shift to 38kHz)
+		if(position == block_size*7){
+			cout<<"loaded trigOffset"<<trigOffset<<endl;
+			cout<<"loaded integrator"<<integrator<<endl;
+			cout<<"loaded phaseEst"<<phaseEst<<endl;
+			cout<<"loaded nco_state"<<nco_state<<endl;
+			cout<<"loaded feedbackI"<<feedbackI<<endl;
+			cout<<"loaded feedbackQ"<<feedbackQ<<endl;
+		}
 		fmPLL(pilot_filtered, pll_freq, audio_Fs, ncoScale, phaseAdjust, normBandwidth, ncoOut, feedbackI, feedbackQ, integrator, phaseEst, trigOffset, nco_state);
+		if(position == block_size*6){
+			std::vector<float> vector_index;
+			genIndexVector(vector_index, ncoOut.size());
+			logVector("ncoOut", vector_index, ncoOut);
+			cout<<"ncoSize is: "<<ncoOut.size()<<endl;
+
+			cout<<"final trigOffset"<<trigOffset<<endl;
+			cout<<"final integrator"<<integrator<<endl;
+			cout<<"final phaseEst"<<phaseEst<<endl;
+			cout<<"final nco_state"<<nco_state<<endl;
+			cout<<"final feedbackI"<<feedbackI<<endl;
+			cout<<"final feedbackQ"<<feedbackQ<<endl;
+		}
+		
 		// for (int i = 0; i < 5; i++) {
 		// 	cout << "pilot_filtered"
 		// }
@@ -205,8 +227,8 @@ void mono(const int mode,std::vector<float>& audio_data, std::vector<float>& ste
 		downsampleBlockConvolveFIR(audio_decim, stereo_lowpass, stereo_mixed, audio_coeff, stereo_lowpass_state, 0, stereo_mixed.size());
 
 		//output stereo signal
-		pointwiseAdd(stereo_lowpass, mono_delay, stereo_left);
-		pointwiseSubtract(stereo_lowpass, mono_delay, stereo_right);
+		pointwiseAdd(audio_block, stereo_lowpass, stereo_left);
+		pointwiseSubtract(audio_block,stereo_lowpass, stereo_right);
 		//prepare new block
 		
 		//cout<<"position+block_size: "<<position+block_size<<endl;
