@@ -168,6 +168,9 @@ void mono(const int mode,std::vector<float>& audio_data, std::vector<float>& ste
 	std::vector<float> stereo_right;
 	std::vector<float> stereo_block;
 
+	std::vector<float> vector_index;
+	std::vector<float> vector_data;
+
 	while (position+block_size<iq_data.size()) {
 		cout<<"block number: "<<position/block_size<<endl;
 
@@ -213,6 +216,13 @@ void mono(const int mode,std::vector<float>& audio_data, std::vector<float>& ste
 		// for (int i = 0; i < 5; i++) {
 		// 	cout << "pilot_filtered"
 		// }
+		if(position == block_size*200 || position == block_size*201){
+			cout<<"pllin[0]: "<<pilot_filtered[0]<<endl;
+			vector_data.insert(vector_data.end(), ncoOut.begin(), ncoOut.end());
+		}
+		if (position == block_size*9) {
+			genIndexVector(vector_index, ncoOut.size()*2);
+		}
 
 		//mix carrier + stereo signal
 		pointwiseMultiply(ncoOut, stereo_filtered, stereo_mixed);//touched
@@ -241,6 +251,7 @@ void mono(const int mode,std::vector<float>& audio_data, std::vector<float>& ste
 		position += block_size;
 		// cout<<stereo_data_left
 	}
+	logVector("ncoOut1", vector_index, vector_data);
 }
 
 int main()

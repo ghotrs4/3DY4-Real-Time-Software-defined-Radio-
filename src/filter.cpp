@@ -206,7 +206,7 @@ void fmPLL(const std::vector<float> &PLLin, const float freq, const float Fs, co
 	for (int k = 0; k < PLLin.size(); k++) {
 		// phase detector
 		errorI = (PLLin[k] == 0 ? 1 : PLLin[k]) * (feedbackI);
-		errorQ = (PLLin[k] == 0 ? 1 : PLLin[k]) * (-1*feedbackQ);
+		errorQ = PLLin[k] * (-1*feedbackQ);
 
 		// four-quadrant arctangent discriminator for phase error detection
 		errorD = atan2(errorQ,errorI);
@@ -229,7 +229,7 @@ void fmPLL(const std::vector<float> &PLLin, const float freq, const float Fs, co
 		ncoOut[k+1] = cos(trigArg*ncoScale + phaseAdjust);
 	}
 
-	nco_state = ncoOut[PLLin.size()-1];
+	nco_state = ncoOut[PLLin.size()];
 
 	// for stereo only the in-phase NCO component should be returned
 	// for block processing you should also return the state
@@ -244,7 +244,8 @@ void delayBlock(const std::vector<float>&input_block, std::vector<float>&state_b
 
 	int stateSize = state_block.size();
 	state_block.clear();
-	state_block.assign(input_block.end()-stateSize, input_block.end());
+	// state_block.assign(input_block.end()-stateSize, input_block.end());
+	state_block.insert(state_block.begin(), input_block.end()-stateSize, input_block.end());
 }
 
 void pointwiseMultiply(const std::vector<float>&block1,const std::vector<float>&block2,std::vector<float>&output){
