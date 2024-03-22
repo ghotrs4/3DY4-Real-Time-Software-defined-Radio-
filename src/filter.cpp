@@ -9,6 +9,7 @@ Ontario, Canada
 #include "dy4.h"
 #include "filter.h"
 #include <cmath>
+#include <chrono>
 
 // function to compute the impulse response "h" based on the sinc function
 void impulseResponseLPF(float Fs, float Fc, unsigned short int num_taps, std::vector<float> &h, int upFactor)
@@ -43,7 +44,7 @@ void convolveFIR(std::vector<float> &y, const std::vector<float> &x, const std::
 	}
 }
 
-void blockConvolveFIR(std::vector<float> &y, const std::vector<float> x, const std::vector<float> h, std::vector<float> &state, int position, int block_size)
+void blockConvolveFIR(std::vector<float> &y, const std::vector<float> &x, const std::vector<float> &h, std::vector<float> &state, int position, int block_size)
 {
 	// allocate memory for the output (filtered) data
 	y.clear(); //y.resize(x.size()+h.size()-1, 0.0);
@@ -52,7 +53,7 @@ void blockConvolveFIR(std::vector<float> &y, const std::vector<float> x, const s
 	std::vector<float> yb;
 
 
-	xb = std::vector<float>(x.begin() + position, x.begin() + position + block_size); // new block
+	xb.assign(x.begin() + position, x.begin() + position + block_size); // new block
 	yb.clear(); // clear output
 	yb.resize(xb.size(), 0.0);
 
@@ -61,7 +62,7 @@ void blockConvolveFIR(std::vector<float> &y, const std::vector<float> x, const s
 			if((n-k)>=0){
 				yb[n]+=h[k]*xb[n-k];
 			} else {
-				yb[n] += h[k] * state[state.size() - (k-n)];
+				yb[n] += h[k] * state[state.size() + (n-k)];
 			}
 		}
 	}
@@ -70,7 +71,7 @@ void blockConvolveFIR(std::vector<float> &y, const std::vector<float> x, const s
 		state.insert(state.begin(), state.begin() + block_size, state.end()); // left shift to make room
 		state.insert(state.end() - block_size, xb.begin(), xb.end()); // put whole block into state
 	} else {
-		state = std::vector<float>(xb.end() - state.size(), xb.end());
+		state.assign(xb.end() - state.size(), xb.end());
 	}
 
 	y=yb;
@@ -108,8 +109,9 @@ void upsample(const std::vector<float> data, size_t factor, std::vector<float> &
         }
     }
 }
-void downsampleBlockConvolveFIR(size_t factor, std::vector<float> &y, const std::vector<float> x, const std::vector<float> h, std::vector<float> &state, int position, int block_size)
+void downsampleBlockConvolveFIR(int factor, std::vector<float> &y, const std::vector<float> &x, const std::vector<float> &h, std::vector<float> &state, int position, int block_size)
 {
+	
     // allocate memory for the output (filtered) data
     y.clear(); //y.resize(x.size()+h.size()-1, 0.0);
 
@@ -143,8 +145,9 @@ void downsampleBlockConvolveFIR(size_t factor, std::vector<float> &y, const std:
 
     y=yb;
 }
-void resampleBlockConvolveFIR(int upFactor, int downFactor, std::vector<float> &y, const std::vector<float> x, const std::vector<float> h, std::vector<float> &state, int position, int block_size)
+void resampleBlockConvolveFIR(int upFactor, int downFactor, std::vector<float> &y, const std::vector<float> &x, const std::vector<float> h, std::vector<float> &state, int position, int block_size)
 {
+	
     // allocate memory for the output (filtered) data
     y.clear(); //y.resize(x.size()+h.size()-1, 0.0);
 
@@ -171,4 +174,6 @@ void resampleBlockConvolveFIR(int upFactor, int downFactor, std::vector<float> &
     state = std::vector<float>(xb.end() - state.size(), xb.end());
 
     y=yb;
+    
+         
 }

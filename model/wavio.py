@@ -64,7 +64,7 @@ if __name__ == "__main__":
 	# 		str(np.array_equal(audio_data,reshaped_data)))
 
 	wavfile.write("../data/audio_processed.wav", \
-				int(36e3), \
+				int(44.1e3), \
 				np.int16((float_data/2)*32767))
 
 	# note: we can also dump audio data in other formats, if needed

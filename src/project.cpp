@@ -14,10 +14,25 @@ Ontario, Canada
 #include "iofunc.h"
 #include "logfunc.h"
 
+#include <chrono>
+
 using namespace std;
+
+	using std::chrono::high_resolution_clock;
+    using std::chrono::duration_cast;
+    using std::chrono::duration;
+    using std::chrono::milliseconds;
+    
+    
 
 void mono(const int mode,std::vector<float>& audio_data)
 {
+	
+	
+		
+	
+    
+    
 	float rf_Fs;
 	float rf_Fc = 100e3;
 	unsigned short int rf_taps = 101;
@@ -56,6 +71,16 @@ void mono(const int mode,std::vector<float>& audio_data)
 			audio_Fs *= audio_upsample;
 			audio_Fc = 22.05e3;
 			break;
+		case 3://output Fs = 44.1k
+			rf_Fs = 1.92e6;
+			audio_Fs = 128e3;
+			rf_decim = 15;
+			audio_decim = 1280;
+			audio_upsample = 441;
+			audio_taps *= audio_upsample;
+			audio_Fs *= audio_upsample;
+			audio_Fc = 22.05e3;
+			break;
 		default:
 			rf_Fs = 2.4e6;
 			audio_Fs = 240e3;
@@ -65,7 +90,7 @@ void mono(const int mode,std::vector<float>& audio_data)
 			audio_Fc = 24e3;
 	}
 
-	const std::string in_fname = "../data/1440.raw";
+	const std::string in_fname = "../data/1920.raw";
 	std::vector<uint8_t> raw_data;
 	readRawData(in_fname, raw_data);
 	std::vector<float> iq_data;
@@ -91,6 +116,7 @@ void mono(const int mode,std::vector<float>& audio_data)
 
 	int position = 0;
 	int block_size = 1024 * rf_decim * audio_decim * 2/audio_upsample;
+	
 	std::vector<float> i_samples;
 	std::vector<float> q_samples;
 	float prev_I=0;
@@ -115,7 +141,30 @@ void mono(const int mode,std::vector<float>& audio_data)
 	cout<<"block size"<<block_size<<endl;
 	cout<<"begin debug: ..."<<endl;
 	cout<<"rf_coeff sample 0: "<<rf_coeff[0]<<endl;
+	
+	
+    
+    /*
+    auto t1 = high_resolution_clock::now();
+    auto t2 = high_resolution_clock::now();
+    
+    auto t3 = high_resolution_clock::now();
+    auto t4 = high_resolution_clock::now();
+    
+    auto t5 = high_resolution_clock::now();
+    auto t6 = high_resolution_clock::now();
+    
+    auto t7 = high_resolution_clock::now();
+    auto t8 = high_resolution_clock::now();
+    
+    auto tbeg = high_resolution_clock::now();
+    
+    auto tend = high_resolution_clock::now();
+    */
+    
 	while (position+block_size<iq_data.size()) {//touched
+		//tbeg = high_resolution_clock::now();
+		
 		cout<<"block number: "<<position/block_size<<endl;
 
 		// for(int i=0;i<5;i++){
@@ -124,23 +173,45 @@ void mono(const int mode,std::vector<float>& audio_data)
 		// for(int i=0;i<5;i++){
 		// 	cout<<"q block samples: "<<q_samples[i+position/2]<<endl;
 		// }
-		blockConvolveFIR(i_block, i_samples, rf_coeff, i_state_rf, position/2, block_size/2);
-		blockConvolveFIR(q_block, q_samples, rf_coeff, q_state_rf, position/2, block_size/2);
+		
+		//t1 = high_resolution_clock::now();
+		
+		//blockConvolveFIR(i_block, i_samples, rf_coeff, i_state_rf, position/2, block_size/2);
+		//blockConvolveFIR(q_block, q_samples, rf_coeff, q_state_rf, position/2, block_size/2);
+		
+		downsampleBlockConvolveFIR(rf_decim, i_downsampled, i_samples, rf_coeff, i_state_rf, position/2, block_size/2);
+		downsampleBlockConvolveFIR(rf_decim, q_downsampled, q_samples, rf_coeff, q_state_rf, position/2, block_size/2);
+		
+
+		
+		//t2 = high_resolution_clock::now();
+		
+		
 		// for(int i=0;i<5;i++){
 		// 	cout<<"i block convolved: "<<i_block[i]<<endl;
 		// }
 		// for(int i=0;i<5;i++){
 		// 	cout<<"q block convolved: "<<q_block[i]<<endl;
 		// }
-		downsample(i_block, rf_decim, i_downsampled);
-		downsample(q_block, rf_decim, q_downsampled);
+		
+		//t3 = high_resolution_clock::now();
+		//downsample(i_block, rf_decim, i_downsampled);
+		//downsample(q_block, rf_decim, q_downsampled);
+		
+		//t4 = high_resolution_clock::now();
+		
+		
 		// for(int i=0;i<5;i++){
 		// 	cout<<"i down samples: "<<i_downsampled[i]<<endl;
 		// }
 		// for(int i=0;i<5;i++){
 		// 	cout<<"q down samples: "<<q_downsampled[i]<<endl;
 		// }
+		
+		//t5 = high_resolution_clock::now();
 		fmDemodArctan(i_downsampled, q_downsampled, prev_I, prev_Q, fm_demod);
+		//t6 = high_resolution_clock::now();
+		
 		// for(int i=0;i<5;i++){
 		// 	cout<<"fmdemod samples: "<<fm_demod[i]<<endl;
 		// }
@@ -155,27 +226,77 @@ void mono(const int mode,std::vector<float>& audio_data)
 		// 	cout<<"audio block samples: "<<audio_block[i]<<endl;
 		// }
 		// downsampleBlockConvolveFIR(audio_decim, audio_block, fm_demod, audio_coeff, state_audio, 0, fm_demod.size());
+		
+		//t7 = high_resolution_clock::now();
 		resampleBlockConvolveFIR(audio_upsample, audio_decim, audio_block, fm_demod, audio_coeff, state_audio, 0, fm_demod.size());
+		//t8 = high_resolution_clock::now();
+		
 		if (position != 0) {
 			audio_data.insert(audio_data.end(), audio_block.begin(), audio_block.end());
+
 		}
 
 		position += block_size;
 		cout<<"position+block_size: "<<position+block_size<<endl;
 		cout<<"iq_data.size(): "<<iq_data.size()<<endl;
+	
+//		tend = high_resolution_clock::now();
+		
 	}
+	
+	
+	/* Getting number of milliseconds as a double. */
+	//duration<double, std::milli> ms_double1 = t2 - t1;
+	
+	//duration<double, std::milli> ms_double2 = t4 - t3;
+	
+	
+	//duration<double, std::milli> ms_double3 = t6 - t5;
+	
+	
+	//duration<double, std::milli> ms_double4 = t8- t7;
+	
+	//duration<double, std::milli> ms_double5 = tend- tbeg;
+	
+	
+	//Prints times
+	//std::cout << "iq resampleblockConvoleFir time = " << ms_double1.count() << "ms\n";
+	
+	
+	//std::cout << "iq downsampling time = " << ms_double2.count() << "ms\n";
+	
+	//std::cout << "fmdemod Arctan time = " << ms_double3.count() << "ms\n";
+	//std::cout << "resample time = " << ms_double4.count() << "ms\n";
+	
+	cout<<"block size: " << block_size<<endl;
+	
+	
 }
 
 int main()
 {
-	int mode = 1;
+	auto timeStart = high_resolution_clock::now();
+	int mode = 3;
 	std::vector<float> audio_data; //output audio sample vector
-	
+    
+    
+    
 	mono(mode, audio_data);
+	
+
+	
+	//std::cout << "total time = " << ms_double5.count() << "ms\n";
+	
 	cout <<"size of output: "<<audio_data.size()<<endl;
 
 	const std::string out_fname = "../data/float32samples.bin";
 	writeBinData(out_fname,audio_data);
+	
+	auto timeEnd = high_resolution_clock::now();
+	
+	duration<double, std::milli> ms_double6 = timeEnd- timeStart;
+	
+	std::cout << "total time = " << ms_double6.count() << "ms\n";
 
 	return 0;
 }
