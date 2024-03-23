@@ -59,7 +59,6 @@ void mono(const int mode,std::vector<float>& audio_data, std::vector<float>& ste
 			audio_decim = 800;
 			audio_upsample = 147;
 			audio_taps *= audio_upsample;
-			audio_Fs *= audio_upsample;
 			audio_Fc = 16e3;
 			block_size = 10 * audio_decim * rf_decim *2;
 			in_fname = "../data/stereo_l0_r9.raw";
@@ -71,7 +70,6 @@ void mono(const int mode,std::vector<float>& audio_data, std::vector<float>& ste
 			audio_decim = 1280;
 			audio_upsample = 441;
 			audio_taps *= audio_upsample;
-			audio_Fs *= audio_upsample;
 			audio_Fc = 16e3;
 			block_size =  10* audio_decim * rf_decim *2	;
 			in_fname = "../data/1920.raw";
@@ -83,7 +81,6 @@ void mono(const int mode,std::vector<float>& audio_data, std::vector<float>& ste
 			audio_decim = 320;
 			audio_upsample = 49;
 			audio_taps *= audio_upsample;
-			audio_Fs *= audio_upsample;
 			audio_Fc = 16e3;
 			block_size = 10 * audio_decim * rf_decim *2;
 			in_fname = "../data/1440.raw";
@@ -110,7 +107,7 @@ void mono(const int mode,std::vector<float>& audio_data, std::vector<float>& ste
 	impulseResponseLPF(rf_Fs, rf_Fc, rf_taps, rf_coeff, 1);
 
 	std::vector<float> audio_coeff;
-	impulseResponseLPF(audio_Fs, audio_Fc, audio_taps, audio_coeff, audio_upsample);
+	impulseResponseLPF(audio_Fs*audio_upsample, audio_Fc, audio_taps, audio_coeff, audio_upsample);
 	
 	std::vector<float> y;
 
@@ -173,7 +170,7 @@ void mono(const int mode,std::vector<float>& audio_data, std::vector<float>& ste
 	std::vector<float> stereo_lowpass_state;
 	
 	impulseResponseBPF(audio_Fs,pilot_Fb, pilot_Fe, num_taps_stereo, pilot_coeff, 1);//gain of 1
-	impulseResponseBPF(audio_Fs,stereo_Fb, stereo_Fe, num_taps_stereo, stereo_coeff, 1);//gain of 1
+	impulseResponseBPF(audio_Fs,stereo_Fb, stereo_Fe, num_taps_stereo, stereo_coeff, 1);
 
 	std::vector<float> pilot_state;
 	std::vector<float> stereo_state;
@@ -189,7 +186,7 @@ void mono(const int mode,std::vector<float>& audio_data, std::vector<float>& ste
 	std::vector<float> stereo_left;
 	std::vector<float> stereo_right;
 	std::vector<float> stereo_block;
-
+	//debug vectors
 	std::vector<float> vector_index;
 	std::vector<float> vector_data;
 
@@ -200,7 +197,7 @@ void mono(const int mode,std::vector<float>& audio_data, std::vector<float>& ste
 		downsampleBlockConvolveFIR(rf_decim, q_downsampled, q_samples, rf_coeff, q_state_rf, position/2, block_size/2);
 
 		fmDemodArctan(i_downsampled, q_downsampled, prev_I, prev_Q, fm_demod);
-
+		cout<<"fm_demod size: "<<fm_demod.size()<<endl;
 		delayBlock(fm_demod, mono_delay_state, mono_delay);
 		resampleBlockConvolveFIR(audio_upsample, audio_decim, audio_block, mono_delay, audio_coeff, state_audio, 0, fm_demod.size());
 		
@@ -211,34 +208,29 @@ void mono(const int mode,std::vector<float>& audio_data, std::vector<float>& ste
 		blockConvolveFIR(stereo_filtered, fm_demod, stereo_coeff, stereo_state, 0, fm_demod.size());
 
 		//PLL + NCO to recover carrier (ie pilot tone phase shift to 38kHz)
-		if(position == block_size*0){
-			cout<<"loaded trigOffset"<<trigOffset<<endl;
-			cout<<"loaded integrator"<<integrator<<endl;
-			cout<<"loaded phaseEst"<<phaseEst<<endl;
-			cout<<"loaded nco_state"<<nco_state<<endl;
-			cout<<"loaded feedbackI"<<feedbackI<<endl;
-			cout<<"loaded feedbackQ"<<feedbackQ<<endl;
-		}
+		// if(position == block_size*15){
+		// 	cout<<"loaded trigOffset"<<trigOffset<<endl;
+		// 	cout<<"loaded integrator"<<integrator<<endl;
+		// 	cout<<"loaded phaseEst"<<phaseEst<<endl;
+		// 	cout<<"loaded nco_state"<<nco_state<<endl;
+		// 	cout<<"loaded feedbackI"<<feedbackI<<endl;
+		// 	cout<<"loaded feedbackQ"<<feedbackQ<<endl;
+		// }
 		
 		fmPLL(pilot_filtered, pll_freq, audio_Fs, ncoScale, phaseAdjust, normBandwidth, ncoOut, feedbackI, feedbackQ, integrator, phaseEst, trigOffset, nco_state);
 		
-		if(position == block_size*0){
-			logVector("ncoOut", vector_index, ncoOut);
-			cout<<"ncoSize is: "<<ncoOut.size()<<endl;
+		if(position == block_size*23){
+			// cout<<"ncoSize is: "<<ncoOut.size()<<endl;
 
-			cout<<"final trigOffset"<<trigOffset<<endl;
-			cout<<"final integrator"<<integrator<<endl;
-			cout<<"final phaseEst"<<phaseEst<<endl;
-			cout<<"final nco_state"<<nco_state<<endl;
-			cout<<"final feedbackI"<<feedbackI<<endl;
-			cout<<"final feedbackQ"<<feedbackQ<<endl;
-		}
-
-		if(position == block_size*200 || position == block_size*201){
-			vector_data.insert(vector_data.end(), ncoOut.begin(), ncoOut.end());
-		}
-		if (position == block_size*203) {
-			genIndexVector(vector_index, ncoOut.size()*2);
+			// cout<<"final trigOffset"<<trigOffset<<endl;
+			// cout<<"final integrator"<<integrator<<endl;
+			// cout<<"final phaseEst"<<phaseEst<<endl;
+			// cout<<"final nco_state"<<nco_state<<endl;
+			// cout<<"final feedbackI"<<feedbackI<<endl;
+			// cout<<"final feedbackQ"<<feedbackQ<<endl;
+			// for(int i=0;i<10;i++){
+			// 	cout<<"ncoOut[i]"<<ncoOut[i]<<endl;
+			// }
 		}
 
 		cout<<"before multiply"<<endl;
@@ -252,13 +244,29 @@ void mono(const int mode,std::vector<float>& audio_data, std::vector<float>& ste
 
 		//downsample and convolve to achieve desired output sample rate (ie 48k for mode 0)
 		resampleBlockConvolveFIR(audio_upsample, audio_decim, stereo_lowpass, stereo_mixed, audio_coeff, stereo_lowpass_state, 0, stereo_mixed.size());
-
 		cout<<"after resample"<<endl;
 		cout<<"size of stereo_filtered and delayeed"<<stereo_lowpass.size()<<endl;
 
+		if (position == block_size*32) {
+			float nfft = 2048;
+			std::vector<float> slice_data = \
+			std::vector<float>(fm_demod.begin(), fm_demod.begin() + nfft);
+
+			std::vector<std::complex<float>> Xf;
+			std::vector<float> Xmag;
+
+			DFT(slice_data, Xf);
+			computeVectorMagnitude(Xf, Xmag);
+			vector_index.clear();
+			genIndexVector(vector_index, Xmag.size());
+			for(int i=0;i<vector_index.size();i++){
+				vector_index[i]=vector_index[i]*(audio_Fs)/nfft;//change audio_Fs to the correct freqeuncy
+			}
+			logVector("ncoOut1", vector_index, Xmag); // log only positive freq
+		}
 
 		pointwiseAdd(audio_block, stereo_lowpass, stereo_left);
-		pointwiseSubtract(audio_block,stereo_lowpass, stereo_right);
+		pointwiseSubtract(audio_block, stereo_lowpass, stereo_right);
 
 		if (position > 0) {//output mono and stereo
 			audio_data.insert(audio_data.end(), audio_block.begin(), audio_block.end());
@@ -270,7 +278,6 @@ void mono(const int mode,std::vector<float>& audio_data, std::vector<float>& ste
 		cout<<"position+block_size: "<<position+block_size<<endl;
 		cout<<"iq_data.size(): "<<iq_data.size()<<endl;
 	}
-	logVector("ncoOut1", vector_index, vector_data);
 }
 
 
@@ -283,6 +290,7 @@ int main()
 	
 	mono(mode, audio_data, stereo_data_left, stereo_data_right);
 	cout <<"size of output: "<<audio_data.size()<<endl;
+	std::cout << "Run: gnuplot -e 'set terminal png size 1024,768' ../data/example.gnuplot > ../data/example.png\n";
 
 	const std::string out_fname = "../data/float32samples.bin";
 	const std::string out_fname_stereo = "../data/float32samplesStereo.bin";

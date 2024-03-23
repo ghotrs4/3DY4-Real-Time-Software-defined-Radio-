@@ -11,14 +11,14 @@ set ylabel 'Sample value'               # set y-axis label
 set xlabel 'Sample #'                   # set x-axis label
 set yrange [-1:1]                       # set y plot range
 set xrange [0:10000]                      # set x plot range
-plot '../data/ncoOut1.dat' using 1:2 with lines lt 1 lw 2 lc rgb '#000088' notitle
+#plot '../data/ncoOut1.dat' using 1:2 with lines lt 1 lw 2 lc rgb '#000088' notitle
 
 # freq domain (Fourier)
 set ylabel 'Spectrum (Mag)'              # set y-axis label
 set xlabel 'Frequency bin'               # set x-axis label
-set yrange [0.0:0.25]                    # set y plot range
-set xrange [0:255]                       # set x plot range
-#plot '../data/demod_freq.dat' using 1:2 with lines lt 1 lw 2 lc rgb '#008800' notitle
+set yrange [0.0:0.13]                    # set y plot range
+set xrange [0:50000]                       # set x plot range
+plot '../data/ncoOut1.dat' using 1:2 with lines lt 1 lw 2 lc rgb '#008800' notitle
 
 # freq domain (PSD)
 set ylabel 'Spectrum (dB/Hz)'            # set y-axis label
