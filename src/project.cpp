@@ -179,7 +179,7 @@ void mono(const int mode,std::vector<float>& audio_data, std::vector<float>& ste
 	pilot_state.resize(pilot_coeff.size()-1, 0.0);
 	stereo_state.resize(stereo_coeff.size()-1, 0.0);
 	stereo_lowpass_state.resize(audio_coeff.size()/audio_upsample-1, 0.0);
-	mono_delay_state.resize((audio_coeff.size())/2, 0.0);
+	mono_delay_state.resize((stereo_coeff.size())/2, 0.0);
 
 	std::vector<float> mono_delay;
 	
@@ -199,9 +199,10 @@ void mono(const int mode,std::vector<float>& audio_data, std::vector<float>& ste
 		fmDemodArctan(i_downsampled, q_downsampled, prev_I, prev_Q, fm_demod);
 		cout<<"fm_demod size: "<<fm_demod.size()<<endl;
 		delayBlock(fm_demod, mono_delay_state, mono_delay);
+		cout<<"after delay"<<endl;
 		resampleBlockConvolveFIR(audio_upsample, audio_decim, audio_block, mono_delay, audio_coeff, state_audio, 0, fm_demod.size());
 		
-
+		cout<<"before stereo"<<endl;
 		//----------start stereo------------
 
 		blockConvolveFIR(pilot_filtered, fm_demod, pilot_coeff, pilot_state, 0, fm_demod.size());
@@ -216,6 +217,8 @@ void mono(const int mode,std::vector<float>& audio_data, std::vector<float>& ste
 		// 	cout<<"loaded feedbackI"<<feedbackI<<endl;
 		// 	cout<<"loaded feedbackQ"<<feedbackQ<<endl;
 		// }
+
+		cout<<"before PLL"<<endl;
 		
 		fmPLL(pilot_filtered, pll_freq, audio_Fs, ncoScale, phaseAdjust, normBandwidth, ncoOut, feedbackI, feedbackQ, integrator, phaseEst, trigOffset, nco_state);
 		
@@ -283,7 +286,7 @@ void mono(const int mode,std::vector<float>& audio_data, std::vector<float>& ste
 
 int main()
 {
-	int mode = 0;
+	int mode = 2;
 	std::vector<float> audio_data; //output audio sample vector
 	std::vector<float> stereo_data_left;
 	std::vector<float> stereo_data_right;
