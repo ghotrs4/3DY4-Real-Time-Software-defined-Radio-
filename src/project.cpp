@@ -28,6 +28,8 @@ void mono(const int mode,std::vector<float>& audio_data)
 	int audio_upsample;
 	unsigned short int audio_taps = 101;
 	float audio_Fc;
+	int block_size;
+	std::string in_fname;
 
 	switch(mode) {
 		case 0: //output Fs = 48k
@@ -36,7 +38,9 @@ void mono(const int mode,std::vector<float>& audio_data)
 			rf_decim = 10;
 			audio_decim = 5;
 			audio_upsample = 1;
-			audio_Fc = 24e3;
+			audio_Fc = 16e3;
+			block_size = 1024 * audio_decim * rf_decim *2;
+			in_fname = "../data/2400.raw";
 			break;
 		case 1://output Fs = 36k
 			rf_Fs = 1.44e6;
@@ -45,6 +49,8 @@ void mono(const int mode,std::vector<float>& audio_data)
 			audio_decim = 8;
 			audio_upsample = 1;
 			audio_Fc = 18e3;
+			block_size = 1024 * audio_decim * rf_decim *2;
+			in_fname = "../data/1440.raw";
 			break;
 		case 2://output Fs = 44.1k
 			rf_Fs = 2.4e6;
@@ -54,7 +60,9 @@ void mono(const int mode,std::vector<float>& audio_data)
 			audio_upsample = 147;
 			audio_taps *= audio_upsample;
 			audio_Fs *= audio_upsample;
-			audio_Fc = 22.05e3;
+			audio_Fc = 16e3;
+			block_size = 10 * audio_decim * rf_decim *2;
+			in_fname = "../data/2400.raw";
 			break;
 		case 3://output Fs = 44.1k
 			rf_Fs = 1.92e6;
@@ -65,6 +73,8 @@ void mono(const int mode,std::vector<float>& audio_data)
 			audio_taps *= audio_upsample;
 			audio_Fs *= audio_upsample;
 			audio_Fc = 16e3;
+			block_size = 10 * audio_decim * rf_decim *2;
+			in_fname = "../data/1920.raw";
 			break;
 		default:
 			rf_Fs = 2.4e6;
@@ -73,9 +83,10 @@ void mono(const int mode,std::vector<float>& audio_data)
 			audio_decim = 5;
 			audio_upsample = 1;
 			audio_Fc = 24e3;
+			block_size = 1024 * audio_decim * rf_decim *2;
+			in_fname = "../data/2400.raw";
 	}
 
-	const std::string in_fname = "../data/_1440.raw";
 	std::vector<uint8_t> raw_data;
 	readRawData(in_fname, raw_data);
 	std::vector<float> iq_data;
@@ -100,7 +111,7 @@ void mono(const int mode,std::vector<float>& audio_data)
 	state_audio.resize((audio_coeff.size()/audio_upsample - 1), 0.0);
 
 	int position = 0;
-	int block_size = 1024 * rf_decim * audio_decim * 2/audio_upsample;
+	//2 if for i and q samples, 10 accounts for minimum block sizex
 	std::vector<float> i_samples;
 	std::vector<float> q_samples;
 	float prev_I=0;
@@ -178,7 +189,7 @@ void mono(const int mode,std::vector<float>& audio_data)
 
 int main()
 {
-	int mode = 1;
+	int mode = 2;
 	std::vector<float> audio_data; //output audio sample vector
 	
 	mono(mode, audio_data);
