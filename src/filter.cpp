@@ -165,6 +165,9 @@ void downsampleBlockConvolveFIR(size_t factor, std::vector<float> &y, const std:
 }
 void resampleBlockConvolveFIR(int upFactor, int downFactor, std::vector<float> &y, const std::vector<float> x, const std::vector<float> h, std::vector<float> &state, int position, int block_size)
 {
+
+	static int debug_block = 0;
+
     // allocate memory for the output (filtered) data
     y.clear(); //y.resize(x.size()+h.size()-1, 0.0);
 
@@ -175,8 +178,15 @@ void resampleBlockConvolveFIR(int upFactor, int downFactor, std::vector<float> &
     yb.clear(); // clear output
     yb.resize((xb.size()/(float)downFactor)*upFactor, 0.0);
 
+	if (debug_block < 11 && debug_block >9){
+		std::cout<<"xb size: "<<xb.size()<<std::endl;
+		std::cout<<"yb size: "<<yb.size()<<std::endl;
+		std::cout<<"h size: "<<h.size()<<std::endl;
+
+	}
+
 	int final_k = 0;
-    for(int n = 0; n < block_size*(upFactor == 1 ? 1 : upFactor-1); n += downFactor){
+    for(int n = 0; n < block_size*(upFactor); n += downFactor){
         int phase = n % upFactor;
         for(int k = phase; k < h.size(); k += upFactor){
             if((n-k)>=0){
@@ -191,4 +201,7 @@ void resampleBlockConvolveFIR(int upFactor, int downFactor, std::vector<float> &
     state = std::vector<float>(xb.end() - state.size(), xb.end());
 
     y=yb;
+
+	debug_block++;
+
 }
