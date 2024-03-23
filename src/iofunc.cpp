@@ -87,3 +87,25 @@ void convertRaw(const std::vector<uint8_t> raw_data, std::vector<float> &iq_data
 		iq_data[i]=((float)raw_data[i]-128.0)/128.0;
 	}
 }
+void write_audio_data(const std::string out_fname, const std::vector<float> &audio_left, const std::vector<float> &audio_right)
+{
+    // file descriptor for the output to be written
+    if (audio_left.size() != audio_right.size()) {
+        std::cout << "Something got messed up with audio channels\n";
+        std::cout << "They must have the same size ... exiting\n";
+        exit(1);
+    } else {
+        std::cout << "Writing raw audio to " << out_fname << std::endl;
+    }
+    std::ofstream fdout(out_fname, std::ios::binary);
+    for (int i=0; i<(int)audio_left.size(); i++) {
+        // we assume we have handled a stereo audio file
+        // hence, we must interleave the two channels
+        // (change as needed if testing with mono files)
+        fdout.write(reinterpret_cast<const char*>(&audio_left[i]),\
+                                sizeof(audio_left[i]));
+        fdout.write(reinterpret_cast<const char*>(&audio_right[i]),\
+                                sizeof(audio_right[i]));
+    }
+    fdout.close();
+}

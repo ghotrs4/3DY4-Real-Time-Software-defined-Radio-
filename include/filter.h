@@ -26,4 +26,12 @@ void downsampleBlockConvolveFIR(int factor, std::vector<float> &y, const std::ve
 void resampleBlockConvolveFIR(int upFactor, int downFactor, std::vector<float> &y, const std::vector<float> &x, const std::vector<float> &h, std::vector<float> &state, int position, int block_size);
 void impulseResponseBPF(float Fs, float Fb, float Fe, unsigned short int num_taps, std::vector<float> &h, int upFactor);
 
+void fmPLL(const std::vector<float> &PLLin, const float freq, const float Fs, const float ncoScale, const float phaseAdjust, const float normBandwidth, std::vector<float> &ncoOut, float &feedbackI, float &feedbackQ, float &integrator, float &phaseEst, float &trigOffset, float &nco_state);
+void delayBlock(const std::vector<float>&input_block, std::vector<float>&state_block, std::vector<float>&output_block);
+void pointwiseMultiply(const std::vector<float>&block1,const std::vector<float>&block2,std::vector<float>&output);
+void pointwiseAdd(const std::vector<float>&block1,const std::vector<float>&block2,std::vector<float>&output);
+void pointwiseSubtract(const std::vector<float>&block1,const std::vector<float>&block2,std::vector<float>&output);
+void interleave(const std::vector<float>&left,const std::vector<float>&right,std::vector<float>&output);
+
+
 #endif // DY4_FILTER_H

@@ -1,4 +1,3 @@
-#
 # Comp Eng 3DY4 (Computer Systems Integration Project)
 #
 # Copyright by Nicola Nicolici
@@ -9,6 +8,7 @@
 
 import numpy as np
 from scipy.io import wavfile
+import sys
 
 #
 # since manipulating .wav files is not the objective of the SDR project and
@@ -28,7 +28,18 @@ from scipy.io import wavfile
 # a header into a .wav file that can then be used on a third part audio player
 #
 
+def cli_error_msg():
+
+	# error message to provide the correct command line interface (CLI) arguments
+	print('Valid arguments:')
+	print('\tmono:  process mono audio')
+	print('\tstereo: process stereo audio')
+	sys.exit()
+
 if __name__ == "__main__":
+
+	if len(sys.argv[0:]) != 2 or (sys.argv[1] != 'mono' and sys.argv[1] != 'stereo'):
+		cli_error_msg()
 
 	# parse an audio file
 	# audio_Fs, audio_data = wavfile.read("../data/audio_test.wav")
@@ -45,7 +56,7 @@ if __name__ == "__main__":
 
 	# input binary file name (from where samples are read into Python)
 	# the default is JUST a SELF-CHECK; of course, change filenames as needed
-	in_fname = "../data/float32samples.bin"
+	in_fname = "../data/float32samples.bin" if sys.argv[1] == 'mono' else "../data/float32samplesStereo.bin"
 	# in_fname = "../data/float32filtered.bin"
 	# read data from a binary file (assuming 32-bit floats)
 	float_data = np.fromfile(in_fname, dtype='float32')
@@ -53,19 +64,21 @@ if __name__ == "__main__":
 	# 	print(float_data[i])
 	print(" Read binary data from \"" + in_fname + "\" in float32 format")
 
-	# # we assume below there are two audio channels where data is
-	# # interleaved, i.e., left channel sample, right channel sample, ...
-	# # for mono .wav files the reshaping below is unnecessary
-	# reshaped_data = np.reshape(float_data, (-1, 2))
+	if (sys.argv[1] == 'stereo'):
+		# we assume below there are two audio channels where data is
+		# interleaved, i.e., left channel sample, right channel sample, ...
+		# for mono .wav files the reshaping below is unnecessary
+		reshaped_data = np.reshape(float_data, (-1, 2))
 
-	# # self-check if the read and write are working correctly
-	# # not needed while working with data generated from C++
-	# print(" Are the two data sets identical ? " +
-	# 		str(np.array_equal(audio_data,reshaped_data)))
+		# # self-check if the read and write are working correctly
+		# # not needed while working with data generated from C++
+		# print(" Are the two data sets identical ? " +
+		# 		str(np.array_equal(float_data,reshaped_data)))
 
 	wavfile.write("../data/audio_processed.wav", \
-				int(44.1e3), \
-				np.int16((float_data/2)*32767))
+				int(48e3), \
+				np.int16((float_data/2)*32767) if not sys.argv[1] == 'stereo' \
+				else np.int16((reshaped_data/2)*32767))
 
 	# note: we can also dump audio data in other formats, if needed
 	# audio_data.astype('int16').tofile('int16samples.bin')

@@ -99,11 +99,12 @@ void blockConvolveFIR(std::vector<float> &y, const std::vector<float> &x, const 
 void fmDemodArctan(const std::vector<float> &I, const std::vector<float> &Q, float &prev_I, float &prev_Q, std::vector<float>& fm_demod) {
 	fm_demod.resize(I.size());
 	for(int k=0;k<I.size();k++){
+		float param = (I[k] == 0 && Q[k] == 0) ? 1 : (pow(I[k],2)+pow(Q[k],2));
 		if(k>0){
-			fm_demod[k] = (I[k]*Q[k-1]-Q[k]*I[k-1])/(pow(I[k],2)+pow(Q[k],2));
+			fm_demod[k] = (I[k]*Q[k-1]-Q[k]*I[k-1])/param;
 		}
 		else{
-			fm_demod[k] = (I[k]*prev_Q-Q[k]*prev_I)/(pow(I[k],2)+pow(Q[k],2));
+			fm_demod[k] = (I[k]*prev_Q-Q[k]*prev_I)/param;
 		}
 	}
 	prev_I = I[I.size()-1];
@@ -204,4 +205,119 @@ void resampleBlockConvolveFIR(int upFactor, int downFactor, std::vector<float> &
 
 	debug_block++;
 
+}
+void fmPLL(const std::vector<float> &PLLin, const float freq, const float Fs, const float ncoScale, const float phaseAdjust, const float normBandwidth, std::vector<float> &ncoOut, float &feedbackI, float &feedbackQ, float &integrator, float &phaseEst, float &trigOffset, float &nco_state){
+	float Cp = 2.666;
+	float Ci = 3.555;
+
+	float Kp = normBandwidth*Cp;
+	float Ki = normBandwidth*normBandwidth*Ci;
+
+	ncoOut.clear();
+	ncoOut.resize(PLLin.size()+1);
+
+	ncoOut[0] = nco_state;
+	// int trigOffset = 0;
+
+	float errorI, errorQ, errorD;
+	float trigArg;
+
+	for (int k = 0; k < PLLin.size(); k++) {
+		// phase detector
+		errorI = (PLLin[k] == 0 ? 1 : PLLin[k]) * (feedbackI);
+		errorQ = PLLin[k] * (-1*feedbackQ);
+
+		if (PLLin[k] != PLLin[k]) {
+			std::cout<<"PLLin[k] touched"<<std::endl;
+		}
+
+		// four-quadrant arctangent discriminator for phase error detection
+		errorD = atan2(errorQ,errorI);
+
+		if (errorD != errorD) {
+			std::cout<<"errorD touched"<<std::endl;
+		}
+
+		// loop filter
+		integrator += Ki*errorD;
+
+		// update phase estimate
+		phaseEst += Kp*errorD + integrator;
+
+		// internal oscillator
+		trigOffset++;
+		trigArg = 2*PI*(freq/Fs)*(trigOffset) + phaseEst;
+
+		feedbackI = cos(trigArg);
+		feedbackQ = sin(trigArg);
+		ncoOut[k+1] = cos(trigArg*ncoScale + phaseAdjust);
+	}
+
+	nco_state = ncoOut[PLLin.size()];
+
+	// for stereo only the in-phase NCO component should be returned
+	// for block processing you should also return the state
+	// for RDS add also the quadrature NCO component to the output
+}
+void delayBlock(const std::vector<float>&input_block, std::vector<float>&state_block, std::vector<float>&output_block){
+	//fm_demod_size: 5120, state_block: 101-1=100
+	output_block.clear();
+
+	output_block.insert(output_block.begin(), state_block.begin(), state_block.end());
+	output_block.insert(output_block.begin()+state_block.size(), input_block.begin(), input_block.end()-state_block.size());
+
+	int stateSize = state_block.size();
+	state_block.clear();
+	// state_block.assign(input_block.end()-stateSize, input_block.end());
+	state_block.insert(state_block.begin(), input_block.end()-stateSize, input_block.end());
+}
+
+void pointwiseMultiply(const std::vector<float>&block1,const std::vector<float>&block2,std::vector<float>&output){
+	output.clear();
+	// if(block1.size()!=block2.size()){
+	// 	std::cout<<"size mismatch in multiply mixer"<<std::endl;
+	// 	std::cout<<"blk1 size: "<<block1.size()<<std::endl;		
+	// 	std::cout<<"blk2 size: "<<block2.size()<<std::endl;
+	// }
+	int size=block1.size()<block2.size()?block1.size():block2.size();
+	output.resize(size);
+
+	for(int i=0;i<size;i++){
+		output[i] = block1[i]*block2[i]*2; //add gain to each element
+	}
+}
+void pointwiseAdd(const std::vector<float>&block1,const std::vector<float>&block2,std::vector<float>&output){
+	output.clear();
+	output.resize(block1.size());
+	// if(block1.size()!=block2.size()){
+	// 	std::cout<<"size mismatch in add mixer"<<std::endl;
+	// 	std::cout<<"blk1 size: "<<block1.size()<<std::endl;		
+	// 	std::cout<<"blk2 size: "<<block2.size()<<std::endl;
+	// }
+	for(int i=0;i<block1.size();i++){
+		output[i] = block1[i]+block2[i];
+	}
+}
+void pointwiseSubtract(const std::vector<float>&block1,const std::vector<float>&block2,std::vector<float>&output){
+	output.clear();
+	output.resize(block1.size());
+	// if(block1.size()!=block2.size()){
+	// 	std::cout<<"size mismatch in subtract mixer"<<std::endl;
+	// 	std::cout<<"blk1 size: "<<block1.size()<<std::endl;		
+	// 	std::cout<<"blk2 size: "<<block2.size()<<std::endl;
+	// }
+	for(int i=0;i<block1.size();i++){
+		output[i] = block1[i]-block2[i];
+	}
+}
+void interleave(const std::vector<float>&left,const std::vector<float>&right,std::vector<float>&output){
+	int size = left.size()+right.size();
+	output.clear();
+	output.resize(size);
+	for(int i=0;i<size;i+=2){
+		output[i]=left[i];
+	}
+	for(int i=1;i<size;i+=2){
+		output[i]=right[i];
+	}
 }
