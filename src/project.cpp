@@ -197,76 +197,53 @@ void mono(const int mode,std::vector<float>& audio_data, std::vector<float>& ste
 		downsampleBlockConvolveFIR(rf_decim, q_downsampled, q_samples, rf_coeff, q_state_rf, position/2, block_size/2);
 
 		fmDemodArctan(i_downsampled, q_downsampled, prev_I, prev_Q, fm_demod);
-		cout<<"fm_demod size: "<<fm_demod.size()<<endl;
+		// cout<<"fm_demod size: "<<fm_demod.size()<<endl;
 		delayBlock(fm_demod, mono_delay_state, mono_delay);
-		cout<<"after delay"<<endl;
+		// cout<<"after delay"<<endl;
 		resampleBlockConvolveFIR(audio_upsample, audio_decim, audio_block, mono_delay, audio_coeff, state_audio, 0, fm_demod.size());
 		
-		cout<<"before stereo"<<endl;
+		// cout<<"before stereo"<<endl;
 		//----------start stereo------------
 
 		blockConvolveFIR(pilot_filtered, fm_demod, pilot_coeff, pilot_state, 0, fm_demod.size());
 		blockConvolveFIR(stereo_filtered, fm_demod, stereo_coeff, stereo_state, 0, fm_demod.size());
 
-		//PLL + NCO to recover carrier (ie pilot tone phase shift to 38kHz)
-		// if(position == block_size*15){
-		// 	cout<<"loaded trigOffset"<<trigOffset<<endl;
-		// 	cout<<"loaded integrator"<<integrator<<endl;
-		// 	cout<<"loaded phaseEst"<<phaseEst<<endl;
-		// 	cout<<"loaded nco_state"<<nco_state<<endl;
-		// 	cout<<"loaded feedbackI"<<feedbackI<<endl;
-		// 	cout<<"loaded feedbackQ"<<feedbackQ<<endl;
-		// }
-
-		cout<<"before PLL"<<endl;
+		// cout<<"before PLL"<<endl;
 		
 		fmPLL(pilot_filtered, pll_freq, audio_Fs, ncoScale, phaseAdjust, normBandwidth, ncoOut, feedbackI, feedbackQ, integrator, phaseEst, trigOffset, nco_state);
-		
-		if(position == block_size*23){
-			// cout<<"ncoSize is: "<<ncoOut.size()<<endl;
 
-			// cout<<"final trigOffset"<<trigOffset<<endl;
-			// cout<<"final integrator"<<integrator<<endl;
-			// cout<<"final phaseEst"<<phaseEst<<endl;
-			// cout<<"final nco_state"<<nco_state<<endl;
-			// cout<<"final feedbackI"<<feedbackI<<endl;
-			// cout<<"final feedbackQ"<<feedbackQ<<endl;
-			// for(int i=0;i<10;i++){
-			// 	cout<<"ncoOut[i]"<<ncoOut[i]<<endl;
-			// }
-		}
-
-		cout<<"before multiply"<<endl;
+		// cout<<"before multiply"<<endl;
 
 		//mix carrier + stereo signal
 		pointwiseMultiply(ncoOut, stereo_filtered, stereo_mixed);
 
-		cout<<"after multiply"<<endl;
-		cout<<"size of stereo_filtered"<<stereo_filtered.size()<<endl;
-		cout<<"size of mono_filtered and delayeed"<<audio_block.size()<<endl;
+		// cout<<"after multiply"<<endl;
+		// cout<<"size of stereo_filtered"<<stereo_filtered.size()<<endl;
+		// cout<<"size of mono_filtered and delayeed"<<audio_block.size()<<endl;
 
 		//downsample and convolve to achieve desired output sample rate (ie 48k for mode 0)
 		resampleBlockConvolveFIR(audio_upsample, audio_decim, stereo_lowpass, stereo_mixed, audio_coeff, stereo_lowpass_state, 0, stereo_mixed.size());
-		cout<<"after resample"<<endl;
-		cout<<"size of stereo_filtered and delayeed"<<stereo_lowpass.size()<<endl;
+		// cout<<"after resample"<<endl;
+		// cout<<"size of stereo_filtered and delayeed"<<stereo_lowpass.size()<<endl;
 
-		if (position == block_size*32) {
-			float nfft = 2048;
-			std::vector<float> slice_data = \
-			std::vector<float>(fm_demod.begin(), fm_demod.begin() + nfft);
+		//------for plotting don't delete-------
+		// if (position == block_size*32) {
+		// 	float nfft = 2048;
+		// 	std::vector<float> slice_data = \
+		// 	std::vector<float>(fm_demod.begin(), fm_demod.begin() + nfft);
 
-			std::vector<std::complex<float>> Xf;
-			std::vector<float> Xmag;
+		// 	std::vector<std::complex<float>> Xf;
+		// 	std::vector<float> Xmag;
 
-			DFT(slice_data, Xf);
-			computeVectorMagnitude(Xf, Xmag);
-			vector_index.clear();
-			genIndexVector(vector_index, Xmag.size());
-			for(int i=0;i<vector_index.size();i++){
-				vector_index[i]=vector_index[i]*(audio_Fs)/nfft;//change audio_Fs to the correct freqeuncy
-			}
-			logVector("ncoOut1", vector_index, Xmag); // log only positive freq
-		}
+		// 	DFT(slice_data, Xf);
+		// 	computeVectorMagnitude(Xf, Xmag);
+		// 	vector_index.clear();
+		// 	genIndexVector(vector_index, Xmag.size());
+		// 	for(int i=0;i<vector_index.size();i++){
+		// 		vector_index[i]=vector_index[i]*(audio_Fs)/nfft;//change audio_Fs to the correct freqeuncy
+		// 	}
+		// 	logVector("ncoOut1", vector_index, Xmag); // log only positive freq
+		// }
 
 		pointwiseAdd(audio_block, stereo_lowpass, stereo_left);
 		pointwiseSubtract(audio_block, stereo_lowpass, stereo_right);
@@ -278,8 +255,8 @@ void mono(const int mode,std::vector<float>& audio_data, std::vector<float>& ste
 		}
 
 		position += block_size;
-		cout<<"position+block_size: "<<position+block_size<<endl;
-		cout<<"iq_data.size(): "<<iq_data.size()<<endl;
+		//cout<<"position+block_size: "<<position+block_size<<endl;
+		//cout<<"iq_data.size(): "<<iq_data.size()<<endl;
 	}
 }
 

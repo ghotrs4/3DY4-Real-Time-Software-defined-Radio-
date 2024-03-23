@@ -263,11 +263,10 @@ void delayBlock(const std::vector<float>&input_block, std::vector<float>&state_b
 	//fm_demod_size: 5120, state_block: 101-1=100
 	output_block.clear();
 
-	std::cout<<"state_block.size(): "<<state_block.size()<<std::endl;
-	std::cout<<"input_block.size(): "<<input_block.size()<<std::endl;
+	//std::cout<<"state_block.size(): "<<state_block.size()<<std::endl;
+	//std::cout<<"input_block.size(): "<<input_block.size()<<std::endl;
 
 	output_block.insert(output_block.end(), state_block.begin(), state_block.end());
-	std::cout<<"check"<<std::endl;
 	output_block.insert(output_block.begin()+state_block.size(), input_block.begin(), input_block.end()-state_block.size());
 
 	int stateSize = state_block.size();
