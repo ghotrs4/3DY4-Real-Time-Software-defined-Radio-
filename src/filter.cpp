@@ -186,16 +186,16 @@ void resampleBlockConvolveFIR(int upFactor, int downFactor, std::vector<float> &
 
 	}
 
-	int final_k = 0;
     for(int n = 0; n < block_size*(upFactor); n += downFactor){
         int phase = n % upFactor;
         for(int k = phase; k < h.size(); k += upFactor){
             if((n-k)>=0){
                 yb[n/downFactor]+=h[k] * xb[(n-k)/upFactor];
+				// std::cout<<"xb index: "<<(n-k)/upFactor<<std::endl;
             } else {
                 yb[n/downFactor] += h[k] * state[state.size() - ((k-n)/upFactor)];
+				// std::cout<<"state index: "<<state.size() - ((k-n)/upFactor)<<std::endl;
             }
-			final_k = k;
         }
     }
 
