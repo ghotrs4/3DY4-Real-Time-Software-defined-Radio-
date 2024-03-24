@@ -44,12 +44,8 @@ struct PLLState {
     float nco_state = 1.0;
 };
 
-void frontend(const int mode, const float rf_decim, const std::vector<float> &rf_coeff, RFState &rf_states, const std::vector<uint8_t> &raw_data, std::vector<float> &fm_demod)
+void frontend(const int mode, const float rf_decim, const std::vector<float> &rf_coeff, RFState &rf_states, const std::vector<float> &iq_data, std::vector<float> &fm_demod)
 {
-	// obtain iq data
-	std::vector<float> iq_data;
-	convertRaw(raw_data, iq_data);
-
 	std::vector<float> i_samples;
 	std::vector<float> q_samples;
 	float prev_I=0;
@@ -135,9 +131,10 @@ void backend(const int mode, const float audio_Fs, const int audio_decim, const 
 }
 
 
-int main()
+int main(int argc, char* argv[])
 {
-	int mode = 3;
+	int mode = 0;
+	bool mono = true;
 	short int num_taps = 101;
 	std::string in_fname;
 	int block_size;
@@ -151,6 +148,27 @@ int main()
 	short int audio_taps;
 	float audio_decim;
 	float audio_upsample;
+
+	if (argc == 3) {
+		mode = atoi(argv[1]);
+		mono = argv[2] == "stereo" ? false: true;
+		if (mode > 3) {
+			std::cerr << "Wrong mode: " << mode << std::endl;
+			exit(1);
+		} else if (argv[2] != "mono" && argv[2] != "stereo") {
+			std::cerr << "Wrong parameter: " << mode << ", must be mono or stereo" << std::endl;
+		}
+	} else {
+		std::cerr << "Usage: " << argv[0] << std::endl;
+		std::cerr << "or " << std::endl;
+		std::cerr << "Usage: " << argv[0] << " <mode>" << std::endl;
+		std::cerr << "or " << std::endl;
+		std::cerr << "Usage: " << argv[0] << " <mode> <mono/stereo>" << std::endl;
+		std::cerr << "\t\t <mode> is a value from 0 to 3" << std::endl;
+		exit(1);
+	}
+
+	std::cerr << "Operating in mode " << mode << (mono ? " mono" : " stereo") << std::endl;
 
 	switch(mode) {
 		case 0: //output Fs = 48k
@@ -251,8 +269,6 @@ int main()
 	impulseResponseBPF(audio_Fs, stereo_Fb, stereo_Fe, num_taps, audio_filters.stereo_coeff, 1);
 
 	/* ------- temporary (?) ------- */
-	int position = 0;
-	std::vector<float> fm_demod;
 	std::vector<float> audio_data;
 	std::vector<float> stereo_data_left;
 	std::vector<float> stereo_data_right;
@@ -262,35 +278,48 @@ int main()
 	std::vector<float> audio_data_block;
 	std::vector<float> stereo_data_left_block;
 	std::vector<float> stereo_data_right_block;
-	std::vector<uint8_t> raw_data_block;
 
-	while (position+block_size < raw_data.size()) {
-		std::cout<<"block number: "<<position/block_size<<std::endl;
+	std::vector<float> iq_data(block_size);
+	std::vector<float> processed_data(block_size);
+	std::vector<short int> final_data(block_size);
 
-		// get raw data block
-		raw_data_block = std::vector<uint8_t>(raw_data.begin() + position, raw_data.begin() + position + block_size);
+	for (unsigned int block_id=0; ; block_id++) {
+		std::cerr << "Block number " << block_id << std::endl;
+
+		readStdinBlockData(block_size, block_id, iq_data);
+		if ((std::cin.rdstate()) != 0) {
+			std::cerr << "End of input stream reached" << std::endl;
+			exit(1);
+		}
 
 		// do front-end stuff (get fm_demod)
-		frontend(mode, rf_decim, rf_coeff, rf_states, raw_data_block, fm_demod_block);
+		frontend(mode, rf_decim, rf_coeff, rf_states, iq_data, fm_demod_block);
 
 		// do back-end stuff
 		backend(mode, audio_Fs, audio_decim, audio_upsample, audio_filters, audio_states, pll_states, fm_demod_block, audio_data_block, stereo_data_left_block, stereo_data_right_block);
 
-		audio_data.insert(audio_data.end(), audio_data_block.begin(), audio_data_block.end());
-		stereo_data_left.insert(stereo_data_left.end(), stereo_data_left_block.begin(), stereo_data_left_block.end());
-		stereo_data_right.insert(stereo_data_right.end(), stereo_data_right_block.begin(), stereo_data_right_block.end());
+		if (mono) {
+			processed_data = audio_data_block;
+		} else {
+			interleave(stereo_data_left_block, stereo_data_right_block, processed_data);
+		}
 
-		position += block_size;
+		for (unsigned int k=0; k<processed_data.size(); k++) {
+			if (std::isnan(processed_data[k])) final_data[k] = 0;
+			else final_data[k] = static_cast<short int>(processed_data[k] * 16384);
+		}
+
+		fwrite(&final_data[0], sizeof(short int), final_data.size(), stdout);
 	}
 	
-	std::cout <<"size of output: "<<audio_data.size()<<std::endl;
-	std::cout << "Run: gnuplot -e 'set terminal png size 1024,768' ../data/example.gnuplot > ../data/example.png\n";
+	// std::cout <<"size of output: "<<audio_data.size()<<std::endl;
+	// std::cout << "Run: gnuplot -e 'set terminal png size 1024,768' ../data/example.gnuplot > ../data/example.png\n";
 
-	const std::string out_fname = "../data/float32samples.bin";
-	const std::string out_fname_stereo = "../data/float32samplesStereo.bin";
+	// const std::string out_fname = "../data/float32samples.bin";
+	// const std::string out_fname_stereo = "../data/float32samplesStereo.bin";
 
-	writeBinData(out_fname,audio_data);
-	write_audio_data(out_fname_stereo, stereo_data_left, stereo_data_right);
+	// writeBinData(out_fname,audio_data);
+	// write_audio_data(out_fname_stereo, stereo_data_left, stereo_data_right);
 
 	return 0;
 }

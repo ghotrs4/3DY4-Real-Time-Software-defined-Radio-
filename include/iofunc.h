@@ -31,4 +31,6 @@ void convertRaw(const std::vector<uint8_t> raw_data, std::vector<float> &iq_data
 
 void write_audio_data(const std::string out_fname, const std::vector<float> &audio_left, const std::vector<float> &audio_right);
 
+void readStdinBlockData(unsigned int num_samples, unsigned int block_id, std::vector<float> &block_data);
+
 #endif // DY4_IOFUNC_H
