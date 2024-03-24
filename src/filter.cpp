@@ -63,37 +63,23 @@ void convolveFIR(std::vector<float> &y, const std::vector<float> &x, const std::
 	}
 }
 
-void blockConvolveFIR(std::vector<float> &y, const std::vector<float> &x, const std::vector<float> &h, std::vector<float> &state, int position, int block_size)
+void blockConvolveFIR(std::vector<float> &y, const std::vector<float> &x, const std::vector<float> &h, std::vector<float> &state)
 {
 	// allocate memory for the output (filtered) data
-	y.clear(); //y.resize(x.size()+h.size()-1, 0.0);
+	y.clear();
+	y.resize(x.size(), 0.0);
 
-	std::vector<float> xb;
-	std::vector<float> yb;
-
-
-	xb = std::vector<float>(x.begin() + position, x.begin() + position + block_size); // new block
-	yb.clear(); // clear output
-	yb.resize(xb.size(), 0.0);
-
-	for(int n=0;n<yb.size();n++){
+	for(int n=0;n<y.size();n++){
 		for(int k=0;k<h.size();k++){
 			if((n-k)>=0){
-				yb[n]+=h[k]*xb[n-k];
+				y[n]+=h[k]*x[n-k];
 			} else {
-				yb[n] += h[k] * state[state.size() - (k-n)];
+				y[n] += h[k] * state[state.size() - (k-n)];
 			}
 		}
 	}
 
-	if (state.size() > block_size) {
-		state.insert(state.begin(), state.begin() + block_size, state.end()); // left shift to make room
-		state.insert(state.end() - block_size, xb.begin(), xb.end()); // put whole block into state
-	} else {
-		state = std::vector<float>(xb.end() - state.size(), xb.end());
-	}
-
-	y=yb;
+	state = std::vector<float>(x.end() - state.size(), x.end());
 }
 
 void fmDemodArctan(const std::vector<float> &I, const std::vector<float> &Q, float &prev_I, float &prev_Q, std::vector<float>& fm_demod) {
@@ -101,7 +87,7 @@ void fmDemodArctan(const std::vector<float> &I, const std::vector<float> &Q, flo
 	for(int k=0;k<I.size();k++){
 		float param = (I[k] == 0 && Q[k] == 0) ? 1 : (pow(I[k],2)+pow(Q[k],2));
 		if(k>0){
-			fm_demod[k] = (I[k]*Q[k-1]-Q[k]*I[k-1])/param;
+			fm_demod[k] = ((I[k]*Q[k-1])-(Q[k]*I[k-1]))/param;
 		}
 		else{
 			fm_demod[k] = (I[k]*prev_Q-Q[k]*prev_I)/param;
@@ -129,81 +115,56 @@ void upsample(const std::vector<float> data, size_t factor, std::vector<float> &
         }
     }
 }
-void downsampleBlockConvolveFIR(int factor, std::vector<float> &y, const std::vector<float> &x, const std::vector<float> &h, std::vector<float> &state, int position, int block_size)
+
+void downsampleBlockConvolveFIR(int factor, std::vector<float> &y, const std::vector<float> &x, const std::vector<float> &h, std::vector<float> &state)
 {
     // allocate memory for the output (filtered) data
-    y.clear(); //y.resize(x.size()+h.size()-1, 0.0);
+    y.clear();
+    y.resize(x.size()/factor, 0.0);
 
-    std::vector<float> xb;
-    std::vector<float> yb;
-
-
-    xb = std::vector<float>(x.begin() + position, x.begin() + position + block_size); // new block
-    yb.clear(); // clear output
-    yb.resize(xb.size()/factor, 0.0);
-    
-    int g = 0;
-
-    for(int n = 0; n < xb.size(); n += factor){
+    for(int n = 0; n < x.size(); n += factor){
         for(int k=0;k<h.size();k++){
             if((n-k)>=0){
-                yb[g]+=h[k]*xb[n-k];
+                y[n/factor]+=h[k]*x[n-k];
             } else {
-                yb[g] += h[k] * state[state.size() - (k-n)];
+                y[n/factor] += h[k] * state[state.size() - (k-n)];
             }
         }
-        g++;
     }
 
-    if (state.size() > block_size) {
-        state.insert(state.begin(), state.begin() + block_size, state.end()); // left shift to make room
-        state.insert(state.end() - block_size, xb.begin(), xb.end()); // put whole block into state
-    } else {
-        state = std::vector<float>(xb.end() - state.size(), xb.end());
-    }
-
-    y=yb;
+    state = std::vector<float>(x.end() - state.size(), x.end());
 }
-void resampleBlockConvolveFIR(int upFactor, int downFactor, std::vector<float> &y, const std::vector<float> &x, const std::vector<float> &h, std::vector<float> &state, int position, int block_size)
+
+void resampleBlockConvolveFIR(int upFactor, int downFactor, std::vector<float> &y, const std::vector<float> &x, const std::vector<float> &h, std::vector<float> &state)
 {
 
-	static int debug_block = 0;
+	// static int debug_block = 0;
 
     // allocate memory for the output (filtered) data
     y.clear(); //y.resize(x.size()+h.size()-1, 0.0);
+    y.resize((x.size()/(float)downFactor)*upFactor, 0.0);
 
-    std::vector<float> xb;
-    std::vector<float> yb;
+	// if (debug_block < 11 && debug_block >9){
+	// 	std::cout<<"xb size: "<<xb.size()<<std::endl;
+	// 	std::cout<<"yb size: "<<yb.size()<<std::endl;
+	// 	std::cout<<"h size: "<<h.size()<<std::endl;
 
-    xb = std::vector<float>(x.begin() + position, x.begin() + position + block_size); // new block
-    yb.clear(); // clear output
-    yb.resize((xb.size()/(float)downFactor)*upFactor, 0.0);
+	// }
 
-	if (debug_block < 11 && debug_block >9){
-		std::cout<<"xb size: "<<xb.size()<<std::endl;
-		std::cout<<"yb size: "<<yb.size()<<std::endl;
-		std::cout<<"h size: "<<h.size()<<std::endl;
-
-	}
-
-    for(int n = 0; n < block_size*(upFactor); n += downFactor){
+    for(int n = 0; n < x.size()*(upFactor); n += downFactor){
         int phase = n % upFactor;
         for(int k = phase; k < h.size(); k += upFactor){
             if((n-k)>=0){
-                yb[n/downFactor]+=h[k] * xb[(n-k)/upFactor];
-				// std::cout<<"xb index: "<<(n-k)/upFactor<<std::endl;
+                y[n/downFactor]+=h[k] * x[(n-k)/upFactor];
             } else {
-                yb[n/downFactor] += h[k] * state[state.size() - ((k-n)/upFactor)];
-				// std::cout<<"state index: "<<state.size() - ((k-n)/upFactor)<<std::endl;
+                y[n/downFactor] += h[k] * state[state.size() - ((k-n)/upFactor)];
             }
         }
     }
 
-    state = std::vector<float>(xb.end() - state.size(), xb.end());
+    state = std::vector<float>(x.end() - state.size(), x.end());
 
-    y=yb;
-
-	debug_block++;
+	// debug_block++;
 
 }
 void fmPLL(const std::vector<float> &PLLin, const float freq, const float Fs, const float ncoScale, const float phaseAdjust, const float normBandwidth, std::vector<float> &ncoOut, float &feedbackI, float &feedbackQ, float &integrator, float &phaseEst, float &trigOffset, float &nco_state){
@@ -214,7 +175,7 @@ void fmPLL(const std::vector<float> &PLLin, const float freq, const float Fs, co
 	float Ki = normBandwidth*normBandwidth*Ci;
 
 	ncoOut.clear();
-	ncoOut.resize(PLLin.size()+1);
+	ncoOut.resize(PLLin.size(), 0.0);
 
 	ncoOut[0] = nco_state;
 	// int trigOffset = 0;
@@ -250,10 +211,12 @@ void fmPLL(const std::vector<float> &PLLin, const float freq, const float Fs, co
 
 		feedbackI = cos(trigArg);
 		feedbackQ = sin(trigArg);
-		ncoOut[k+1] = cos(trigArg*ncoScale + phaseAdjust);
+		if (k == PLLin.size() - 1) {
+			nco_state = cos(trigArg*ncoScale + phaseAdjust);
+		} else {
+			ncoOut[k+1] = cos(trigArg*ncoScale + phaseAdjust);
+		}
 	}
-
-	nco_state = ncoOut[PLLin.size()];
 
 	// for stereo only the in-phase NCO component should be returned
 	// for block processing you should also return the state

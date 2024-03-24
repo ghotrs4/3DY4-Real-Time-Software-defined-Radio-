@@ -65,8 +65,8 @@ void frontend(const int mode, const float rf_decim, const std::vector<float> &rf
 	std::vector<float> q_downsampled;
 
 	// downsample and filter i and q data
-	downsampleBlockConvolveFIR(rf_decim, i_downsampled, i_samples, rf_coeff, rf_states.i_state_rf, 0, i_samples.size());
-	downsampleBlockConvolveFIR(rf_decim, q_downsampled, q_samples, rf_coeff, rf_states.q_state_rf, 0, i_samples.size());
+	downsampleBlockConvolveFIR(rf_decim, i_downsampled, i_samples, rf_coeff, rf_states.i_state_rf);
+	downsampleBlockConvolveFIR(rf_decim, q_downsampled, q_samples, rf_coeff, rf_states.q_state_rf);
 
 	// use i and q data to obtain demodulated data
 	fmDemodArctan(i_downsampled, q_downsampled, prev_I, prev_Q, fm_demod);
@@ -96,12 +96,12 @@ void backend(const int mode, const float audio_Fs, const int audio_decim, const 
 
 	delayBlock(fm_demod, audio_states.mono_delay_state, mono_delay);
 
-	resampleBlockConvolveFIR(audio_upsample, audio_decim, audio_block, mono_delay, audio_filters.audio_coeff, audio_states.state_audio, 0, fm_demod.size());
+	resampleBlockConvolveFIR(audio_upsample, audio_decim, audio_block, mono_delay, audio_filters.audio_coeff, audio_states.state_audio);
 	
 	//----------start stereo------------
 
-	blockConvolveFIR(pilot_filtered, fm_demod, audio_filters.pilot_coeff, audio_states.pilot_state, 0, fm_demod.size());
-	blockConvolveFIR(stereo_filtered, fm_demod, audio_filters.stereo_coeff, audio_states.stereo_state, 0, fm_demod.size());
+	blockConvolveFIR(pilot_filtered, fm_demod, audio_filters.pilot_coeff, audio_states.pilot_state);
+	blockConvolveFIR(stereo_filtered, fm_demod, audio_filters.stereo_coeff, audio_states.stereo_state);
 	
 	fmPLL(pilot_filtered, pll_freq, audio_Fs, ncoScale, phaseAdjust, normBandwidth, ncoOut, pll_states.feedbackI, pll_states.feedbackQ, pll_states.integrator, pll_states.phaseEst, pll_states.trigOffset, pll_states.nco_state);
 
@@ -109,7 +109,7 @@ void backend(const int mode, const float audio_Fs, const int audio_decim, const 
 	pointwiseMultiply(ncoOut, stereo_filtered, stereo_mixed);
 
 	//downsample and convolve to achieve desired output sample rate (ie 48k for mode 0)
-	resampleBlockConvolveFIR(audio_upsample, audio_decim, stereo_lowpass, stereo_mixed, audio_filters.audio_coeff, audio_states.stereo_lowpass_state, 0, stereo_mixed.size());
+	resampleBlockConvolveFIR(audio_upsample, audio_decim, stereo_lowpass, stereo_mixed, audio_filters.audio_coeff, audio_states.stereo_lowpass_state);
 
 	//------for plotting don't delete-------
 	// if (position == block_size*32) {
@@ -137,7 +137,7 @@ void backend(const int mode, const float audio_Fs, const int audio_decim, const 
 
 int main()
 {
-	int mode = 2;
+	int mode = 3;
 	short int num_taps = 101;
 	std::string in_fname;
 	int block_size;
