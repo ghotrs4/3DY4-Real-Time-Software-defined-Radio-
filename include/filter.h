@@ -33,5 +33,9 @@ void pointwiseAdd(const std::vector<float>&block1,const std::vector<float>&block
 void pointwiseSubtract(const std::vector<float>&block1,const std::vector<float>&block2,std::vector<float>&output);
 void interleave(const std::vector<float>&left,const std::vector<float>&right,std::vector<float>&output);
 
+void squaringNonlinearity(const std::vector<float>&x,std::vector<float>&y);
+void impulseResponseRootRaisedCosine(const float Fs, const float N_taps, std::vector<float> &impulseResponseRRC);
+
+
 
 #endif // DY4_FILTER_H

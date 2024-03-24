@@ -16,6 +16,15 @@ Ontario, Canada
 
 using namespace std;
 
+struct PLLState {
+    float feedbackI=1.0;
+	float feedbackQ=0.0;
+	float integrator=0;
+	float phaseEst=0;
+	float trigOffset=0;
+	float nco_state=1.0;
+};
+
 void mono(const int mode,std::vector<float>& audio_data, std::vector<float>& stereo_data_left,std::vector<float>& stereo_data_right)
 {
 	float rf_Fs;
@@ -258,6 +267,97 @@ void mono(const int mode,std::vector<float>& audio_data, std::vector<float>& ste
 		//cout<<"position+block_size: "<<position+block_size<<endl;
 		//cout<<"iq_data.size(): "<<iq_data.size()<<endl;
 	}
+}
+
+
+void RDS(int mode, const std::vector<float> &x, PLLState pll_state){
+	int sps;
+	float rds_upfactor;
+	float rds_decim;
+
+	float rds_Fb=57e3-3e3;
+	float rds_Fe=57e3+3e3;
+
+	float rds_carrier_Fb=114e3-0.5e3;
+	float rds_carrier_Fe=114e3+0.5e3;
+
+	float pll_freq=114e3;
+	float ncoScale = 0.5;
+	float normBandwidth = 0.003;
+	float phaseAdjust=0;
+
+	float num_taps = 101;
+	float audio_Fs;
+
+	switch(mode) {
+		case 0: //output Fs = 48k
+			sps = 16;
+			audio_Fs = 240e3;
+			rds_upfactor=19;
+	 		rds_decim=120;
+			break;
+		case 1://output Fs = 36k
+			sps = 27;
+			audio_Fs = 288e3;
+			rds_upfactor=57;
+	 		rds_decim=265;
+			break;
+		default:
+			sps = 16;
+			audio_Fs = 240e3;
+			break;
+	}
+
+	std::vector<float> rds_coeff;
+	std::vector<float> rds_state;
+	std::vector<float> rds_filtered;
+
+	std::vector<float> rds_delay;
+	std::vector<float> rds_delay_state;//touched
+
+	std::vector<float> rds_squared;
+	std::vector<float> rds_carrier_coeff;
+	std::vector<float> rds_carrier_filtered;
+	std::vector<float> rds_carrier_state;//touched
+	std::vector<float> rds_ncoOut;
+
+	std::vector<float> i_ncoOut;
+	std::vector<float> q_ncoOut;
+
+	std::vector<float> rds_mixed;
+	std::vector<float> rds_lpf_coeff;
+	std::vector<float> rds_lpf;
+	std::vector<float> rds_lpf_state;
+	float mixed_cutoff = 3e3;
+	float intermediate_Fs = sps*2375;
+
+	std::vector<float> RRC;
+
+	rds_state.resize(rds_coeff.size()-1, 0.0);
+	rds_delay_state.resize(rds_coeff.size()/2-1, 0.0);
+	rds_carrier_state.resize(rds_carrier_coeff.size()-1, 0.0);
+	rds_lpf_state.resize(rds_lpf_coeff.size()/rds_upfactor-1, 0.0);
+
+	
+	impulseResponseBPF(audio_Fs, rds_Fb, rds_Fe, num_taps, rds_coeff, 1);//for filtered RDS band
+	impulseResponseBPF(audio_Fs, rds_carrier_Fb, rds_carrier_Fe, num_taps, rds_carrier_coeff, 1);//to isolate RDS carrier
+
+	impulseResponseLPF(audio_Fs, mixed_cutoff, num_taps*rds_upfactor, rds_lpf_coeff, rds_upfactor);//to lpf mixed signal
+
+	blockConvolveFIR(rds_filtered, x, rds_coeff, rds_state, 0, x.size());
+	//delay path
+	delayBlock(rds_filtered, rds_delay_state, rds_delay);
+
+	//recover carrier
+	squaringNonlinearity(rds_filtered, rds_squared);
+	blockConvolveFIR(rds_carrier_filtered, rds_squared, rds_carrier_coeff, rds_carrier_state, 0, rds_squared.size());
+	fmPLL(rds_carrier_filtered, pll_freq, audio_Fs, ncoScale, phaseAdjust, normBandwidth, rds_ncoOut, pll_state.feedbackI, pll_state.feedbackQ, pll_state.integrator, pll_state.phaseEst, pll_state.trigOffset, pll_state.nco_state);
+
+	//combine streams
+	pointwiseMultiply(rds_ncoOut, rds_delay, rds_mixed);
+	resampleBlockConvolveFIR(rds_upfactor, rds_decim, rds_lpf, rds_mixed, rds_lpf_coeff, rds_lpf_state, 0, rds_mixed.size());
+	impulseResponseRootRaisedCosine(intermediate_Fs, num_taps, RRC);
+
 }
 
 

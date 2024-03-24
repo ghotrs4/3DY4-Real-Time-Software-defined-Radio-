@@ -324,3 +324,46 @@ void interleave(const std::vector<float>&left,const std::vector<float>&right,std
 		output[i]=right[i];
 	}
 }
+void squaringNonlinearity(const std::vector<float>&x,std::vector<float>&y){
+	y.clear();
+	y.resize(x.size());
+	for(int i=0;i<x.size();i++){
+		y[i]=x[i]*x[i];
+	}
+}
+void impulseResponseRootRaisedCosine(const float Fs, const float N_taps, std::vector<float> &impulseResponseRRC){
+	float T_symbol = 1/2375.0;
+	float beta = 0.90;
+
+	impulseResponseRRC.clear();
+	impulseResponseRRC.resize(N_taps, 0.0);
+
+	for(int k=0;k<N_taps;k++){
+		float t = (float)(k-N_taps/2)/Fs;
+		if(t==0.0){
+			impulseResponseRRC[k] = 1.0 + beta*((4/PI)-1);
+		}
+		else if(t == -T_symbol/(4*beta) or t == T_symbol/(4*beta)){
+			impulseResponseRRC[k] = (beta/sqrt(2))*(((1+2/PI)*
+				(sin(PI/(4*beta)))) + ((1-2/PI)*(cos(PI/(4*beta)))));
+		}
+		else{
+			impulseResponseRRC[k] = (sin(PI*t*(1-beta)/T_symbol) +  
+				4*beta*(t/T_symbol)*cos(PI*t*(1+beta)/T_symbol))/ 
+				(PI*t*(1-(4*beta*t/T_symbol)*(4*beta*t/T_symbol))/T_symbol);
+		}
+	}
+}
+void deinterlaceIQ(const std::vector<float> &x, std::vector<float>& I, std::vector<float>& Q){
+	I.clear();
+	I.resize(x.size()/2);
+	Q.clear();
+	Q.resize(x.size()/2);
+
+	for(int i=0;i<x.size();i+=2){
+		I[i] = x[i];
+	}
+	for(int i=1;i<x.size();i+=2){
+		Q[i] = x[i];
+	}
+}
