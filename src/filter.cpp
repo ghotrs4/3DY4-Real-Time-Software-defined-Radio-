@@ -189,14 +189,14 @@ void fmPLL(const std::vector<float> &PLLin, const float freq, const float Fs, co
 		errorQ = PLLin[k] * (-1*feedbackQ);
 
 		if (PLLin[k] != PLLin[k]) {
-			std::cout<<"PLLin[k] touched"<<std::endl;
+		//	std::cout<<"PLLin[k] touched"<<std::endl;
 		}
 
 		// four-quadrant arctangent discriminator for phase error detection
 		errorD = atan2(errorQ,errorI);
 
 		if (errorD != errorD) {
-			std::cout<<"errorD touched"<<std::endl;
+		//	std::cout<<"errorD touched"<<std::endl;
 		}
 
 		// loop filter
@@ -281,9 +281,9 @@ void interleave(const std::vector<float>&left,const std::vector<float>&right,std
 	output.clear();
 	output.resize(size);
 	for(int i=0;i<size;i+=2){
-		output[i]=left[i];
+		output[i]=left[i/2];
 	}
 	for(int i=1;i<size;i+=2){
-		output[i]=right[i];
+		output[i]=right[i/2];
 	}
 }

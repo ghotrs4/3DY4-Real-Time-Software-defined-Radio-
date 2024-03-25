@@ -59,11 +59,9 @@ void frontend(const int mode, const float rf_decim, const std::vector<float> &rf
 
 	std::vector<float> i_downsampled;
 	std::vector<float> q_downsampled;
-
 	// downsample and filter i and q data
 	downsampleBlockConvolveFIR(rf_decim, i_downsampled, i_samples, rf_coeff, rf_states.i_state_rf);
 	downsampleBlockConvolveFIR(rf_decim, q_downsampled, q_samples, rf_coeff, rf_states.q_state_rf);
-
 	// use i and q data to obtain demodulated data
 	fmDemodArctan(i_downsampled, q_downsampled, prev_I, prev_Q, fm_demod);
 }
@@ -151,12 +149,13 @@ int main(int argc, char* argv[])
 
 	if (argc == 3) {
 		mode = atoi(argv[1]);
-		mono = argv[2] == "stereo" ? false: true;
+		std::string channel = argv[2];
+		mono = channel == "stereo" ? false: true;
 		if (mode > 3) {
 			std::cerr << "Wrong mode: " << mode << std::endl;
 			exit(1);
-		} else if (argv[2] != "mono" && argv[2] != "stereo") {
-			std::cerr << "Wrong parameter: " << mode << ", must be mono or stereo" << std::endl;
+		} else if (channel != "mono" && channel != "stereo") {
+			std::cerr << "Wrong parameter: " << channel << ", must be mono or stereo" << std::endl;
 		}
 	} else {
 		std::cerr << "Usage: " << argv[0] << std::endl;
@@ -192,7 +191,7 @@ int main(int argc, char* argv[])
 			audio_upsample = 1;
 			audio_taps = num_taps;
 
-			block_size = 1024 * audio_decim * rf_decim *2;
+			block_size = 1024* audio_decim * rf_decim *2;
 			in_fname = "../data/1440.raw";
 			break;
 		case 2://output Fs = 44.1k
@@ -249,10 +248,6 @@ int main(int argc, char* argv[])
 
 	PLLState pll_states;
 
-	// read raw data (change later for real-time processing)
-	std::vector<uint8_t> raw_data;
-	readRawData(in_fname, raw_data);
-
 	// obtain filter coefficients for rf low-pass filter
 	std::vector<float> rf_coeff;
 	impulseResponseLPF(rf_Fs, rf_Fc, num_taps, rf_coeff, 1);
@@ -280,8 +275,8 @@ int main(int argc, char* argv[])
 	std::vector<float> stereo_data_right_block;
 
 	std::vector<float> iq_data(block_size);
-	std::vector<float> processed_data(block_size);
-	std::vector<short int> final_data(block_size);
+	std::vector<float> processed_data(block_size/(audio_decim*rf_decim*2)*audio_upsample * (mono ? 1 : 2));
+	std::vector<short int> final_data(block_size/(audio_decim*rf_decim*2)*audio_upsample * (mono ? 1 : 2));
 
 	for (unsigned int block_id=0; ; block_id++) {
 		std::cerr << "Block number " << block_id << std::endl;
@@ -291,24 +286,22 @@ int main(int argc, char* argv[])
 			std::cerr << "End of input stream reached" << std::endl;
 			exit(1);
 		}
-
+		
 		// do front-end stuff (get fm_demod)
 		frontend(mode, rf_decim, rf_coeff, rf_states, iq_data, fm_demod_block);
-
 		// do back-end stuff
 		backend(mode, audio_Fs, audio_decim, audio_upsample, audio_filters, audio_states, pll_states, fm_demod_block, audio_data_block, stereo_data_left_block, stereo_data_right_block);
-
+		
 		if (mono) {
-			processed_data = audio_data_block;
+			processed_data.assign(audio_data_block.begin(), audio_data_block.end());
 		} else {
 			interleave(stereo_data_left_block, stereo_data_right_block, processed_data);
 		}
-
+		
 		for (unsigned int k=0; k<processed_data.size(); k++) {
 			if (std::isnan(processed_data[k])) final_data[k] = 0;
 			else final_data[k] = static_cast<short int>(processed_data[k] * 16384);
 		}
-
 		fwrite(&final_data[0], sizeof(short int), final_data.size(), stdout);
 	}
 	
