@@ -17,16 +17,42 @@ import math
 from fmSupportLib import fmDemodArctan, fmPlotPSD
 # for take-home add your functions
 
+# rf_Fs = 1.92e6;
+# audio_Fs = 128e3;
+# rf_decim = 15;
+# rf_Fc = 60e3;
+# audio_decim = 4;
+# audio_upsample = 1;
+# audio_taps *= audio_upsample;
+# audio_Fc = 16e3;
+# block_size =  1024* audio_decim * rf_decim *2;
+# in_fname = "../data/1920.raw";
+
+# rf_Fs = 1.92e6
+# rf_Fc = 60e3
+# rf_taps = 101
+# rf_decim = 15
+
+# audio_Fs = 128e3
+# audio_decim = 4
+# audio_upsample = 1
+# audio_taps = 101
+# audio_Fc = 16e3
+
+# final_Fs = 32e3
+
 rf_Fs = 2.4e6
 rf_Fc = 100e3
 rf_taps = 101
 rf_decim = 10
 
-audio_Fs = 48e3
+audio_Fs = 240e3
 audio_decim = 5
-# add other settings for audio, like filter taps, ...
+audio_upsample = 1
 audio_taps = 101
 audio_Fc = 16e3
+
+final_Fs = 48e3
 
 # flag that keeps track if your code is running for
 # in-lab (il_vs_th = 0) vs takehome (il_vs_th = 1)
@@ -40,10 +66,14 @@ def fmDemodArctanCustom(I, Q, prev_I=0, prev_Q=0):
 	for k in range(len(I)):
 		# use the atan2 function (four quadrant version) to detect angle between
 		# the imaginary part (quadrature Q) and the real part (in-phase I)
+		# if(k>=0):
+		# 	fm_demod[k] = ((I[k]*(Q[k-1]))-(Q[k]*(I[k-1])))/(I[k]**2+Q[k]**2)
+		# else:
+		# 	fm_demod[k] = ((I[k]*(prev_Q))-(Q[k]*(prev_I)))/(I[k]**2+Q[k]**2)
 		if(k>=0):
-			fm_demod[k] = (I[k]*Q[k-1]-Q[k]*I[k-1])/(I[k]**2+Q[k]**2)
+			fm_demod[k] = ((I[k]*(Q[k]-Q[k-1]))-(Q[k]*(I[k]-I[k-1])))/(I[k]**2+Q[k]**2)
 		else:
-			fm_demod[k] = (I[k]*prev_Q-Q[k]*prev_I)/(I[k]**2+Q[k]**2)
+			fm_demod[k] = ((I[k]*(Q[k]-prev_Q))-(Q[k]*(I[k]-prev_I)))/(I[k]**2+Q[k]**2)
 
 		# save the state of the current phase
 		# to compute the next derivative
@@ -69,10 +99,10 @@ if __name__ == "__main__":
 
 	# read the raw IQ data from the recorded file
 	# IQ data is assumed to be in 8-bits unsigned (and interleaved)
-	in_fname = "../data/iq_samples.raw"
+	in_fname = "../data/samples0.raw"
 	raw_data = np.fromfile(in_fname, dtype='uint8')
-	for i in range(5):
-		print(raw_data[i])
+	# for i in range(5):
+	# 	print(raw_data[i])
 	print("Read raw RF data from \"" + in_fname + "\" in unsigned 8-bit format")
 	# IQ data is normalized between -1 and +1 in 32-bit float format
 	iq_data = (np.float32(raw_data) - 128.0)/128.0
@@ -82,7 +112,7 @@ if __name__ == "__main__":
 	rf_coeff = signal.firwin(rf_taps, rf_Fc/(rf_Fs/2), window=('hann'))
 
 	# coefficients for the filter to extract mono audio
-	if il_vs_th == 0:
+	if il_vs_th == 1:
 		# to be updated by you during the in-lab session based on firwin
 		# same principle as for rf_coeff (but different arguments, of course)
 		audio_coeff = signal.firwin(audio_taps, audio_Fc/(audio_Fs/2), window=('hann'))
@@ -96,6 +126,7 @@ if __name__ == "__main__":
 				h[i] = Norm_cutoff
 			else:
 				param = np.pi * Norm_cutoff * (i - (audio_taps - 1)/2)
+				# print("param: " + str(param))
 				h[i] = Norm_cutoff * np.sin(param)/param
 			h[i] = h[i]*((np.sin(i*np.pi/audio_taps))**2)
 		audio_coeff = h
@@ -123,7 +154,7 @@ if __name__ == "__main__":
 	# custom resets
 	prev_I = 0
 	prev_Q = 0
-	state = np.zeros(shape = (len(audio_coeff)-1, 1))
+	state = np.zeros(audio_taps-1)
 
 	# if the number of samples in the last block is less than the block size
 	# it is fine to ignore the last few samples from the raw IQ file
@@ -132,6 +163,8 @@ if __name__ == "__main__":
 		# if you wish to have shorter runtimes while troubleshooting
 		# you can control the above loop exit condition as you see fit
 		print('Processing block ' + str(block_count))
+		# print("state_i_lpf_100k size: " + str(len(state_i_lpf_100k)))
+		# print("x size: " + str(len(iq_data[(block_count)*block_size:(block_count+1)*block_size:2])))
 
 		# filter to extract the FM channel (I samples are even, Q samples are odd)
 		i_filt, state_i_lpf_100k = signal.lfilter(rf_coeff, 1.0, \
@@ -142,8 +175,16 @@ if __name__ == "__main__":
 				zi=state_q_lpf_100k)
 
 		# downsample the I/Q data from the FM channel
+		# print("i_filt size: " + str(len(i_filt)))
+		# print("q_filt size: " + str(len(q_filt)))
 		i_ds = i_filt[::rf_decim]
 		q_ds = q_filt[::rf_decim]
+		# print("i_ds size: " + str(len(i_ds)))
+		# print("q_ds size: " + str(len(q_ds)))
+
+		# for i in range(5):
+		# 	print("i_ds[" + str(i) + "]: " + str(i_ds[i]))
+		# 	print("q_ds[" + str(i) + "]: " + str(q_ds[i]))
 
 		# FM demodulator
 		if il_vs_th == 0:
@@ -156,20 +197,29 @@ if __name__ == "__main__":
 			# see more comments on fmSupportLib.py - take particular notice that
 			# you MUST have also "custom" state-saving for your own FM demodulator
 			fm_demod, prev_I, prev_Q = fmDemodArctanCustom(i_ds, q_ds, prev_I, prev_Q)
+		
+		# print("fm_demod size: " + str(len(fm_demod)))
 
 		# extract the mono audio data through filtering
-		if il_vs_th == 0:
+		if il_vs_th == 1:
 			# to be updated by you during the in-lab session based on lfilter
 			# same principle as for i_filt or q_filt (but different arguments)
-			audio_filt, state = signal.lfilter(audio_coeff, 1.0, fm_demod, state)
+			# print("audio coeff size: " + str(len(audio_coeff)))
+			# print("fm_demod size: " + str(len(fm_demod)))
+			# print("state size: " + str(len(state)))
+			audio_filt, state = signal.lfilter(audio_coeff, 1.0, fm_demod, zi=state)
 		else:
 			# to be updated by you for the takehome exercise
 			# with your own code for BLOCK convolution
 			audio_filt, state = convolve(fm_demod, audio_coeff, state)
+		
+		# print("audio_filt size: " + str(len(audio_filt)))
 
 		# downsample audio data
 		# to be updated by you during in-lab (same code for takehome)
 		audio_block = audio_filt[::audio_decim]
+
+		# print("audio_block size: " + str(len(audio_block)))
 
 		# concatenate the most recently processed audio_block
 		# to the previous blocks stored already in audio_data
@@ -194,13 +244,13 @@ if __name__ == "__main__":
 			# plot PSD of selected block after extracting mono audio
 			audio_filt = signal.lfilter(audio_coeff, 1.0, fm_demod)
 			ax1.clear()
-			fmPlotPSD(ax1, audio_filt, (audio_Fs)/1e3, subfig_height[1], \
+			fmPlotPSD(ax1, audio_filt, (final_Fs)/1e3, subfig_height[1], \
 					'PSD Before Downsampling (block ' + str(block_count) + ')')
 
 			# plot PSD of selected block after downsampling mono audio
 			audio_block = audio_filt[::audio_decim]
 			ax2.clear()
-			fmPlotPSD(ax2, audio_block, (audio_Fs)/1e3, subfig_height[2], \
+			fmPlotPSD(ax2, audio_block, (final_Fs)/1e3, subfig_height[2], \
 					'PSD After Downsampling (block ' + str(block_count) + ')')
 
 			# save figure to file
@@ -212,7 +262,7 @@ if __name__ == "__main__":
 
 	# write audio data to file
 	out_fname = "../data/fmMonoBlock.wav"
-	wavfile.write(out_fname, int(audio_Fs), np.int16((audio_data/2)*32767))
+	wavfile.write(out_fname, int(final_Fs), np.int16((audio_data/2)*32767))
 	print("Written audio samples to \"" + out_fname + "\" in signed 16-bit format")
 
 	# uncomment assuming you wish to show some plots

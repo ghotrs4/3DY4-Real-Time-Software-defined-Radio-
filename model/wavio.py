@@ -76,9 +76,9 @@ if __name__ == "__main__":
 		# 		str(np.array_equal(float_data,reshaped_data)))
 
 	wavfile.write("../data/audio_processed.wav", \
-				int(48e3), \
-				np.int16((float_data/2)*32767) if not sys.argv[1] == 'stereo' \
-				else np.int16((reshaped_data/2)*32767))
+				int(483), \
+				np.int16((float_data)) if not sys.argv[1] == 'stereo' \
+				else np.int16((reshaped_data)))
 
 	# note: we can also dump audio data in other formats, if needed
 	# audio_data.astype('int16').tofile('int16samples.bin')
