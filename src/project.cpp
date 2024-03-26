@@ -19,6 +19,8 @@ using namespace std;
 struct RFState {
 	std::vector<float> i_state_rf;
 	std::vector<float> q_state_rf;
+	float prev_I = 0;
+	float prev_Q = 0;
 };
 
 struct AudioState {
@@ -46,15 +48,15 @@ struct PLLState {
 
 void frontend(const int mode, const float rf_decim, const std::vector<float> &rf_coeff, RFState &rf_states, const std::vector<float> &iq_data, std::vector<float> &fm_demod)
 {
-	std::vector<float> i_samples;
-	std::vector<float> q_samples;
-	float prev_I=0;
-	float prev_Q=0;
+	std::vector<float> i_samples(iq_data.size()/2);
+	std::vector<float> q_samples(iq_data.size()/2);
+	// float prev_I=0;
+	// float prev_Q=0;
 
 	// separate i and q samples
 	for(int i=0;i<iq_data.size();i+=2){
-		i_samples.push_back(iq_data[i]);
-		q_samples.push_back(iq_data[i+1]);
+		i_samples[i/2]=iq_data[i];
+		q_samples[i/2]=iq_data[i+1];
 	}
 
 	std::vector<float> i_downsampled;
@@ -63,7 +65,7 @@ void frontend(const int mode, const float rf_decim, const std::vector<float> &rf
 	downsampleBlockConvolveFIR(rf_decim, i_downsampled, i_samples, rf_coeff, rf_states.i_state_rf);
 	downsampleBlockConvolveFIR(rf_decim, q_downsampled, q_samples, rf_coeff, rf_states.q_state_rf);
 	// use i and q data to obtain demodulated data
-	fmDemodArctan(i_downsampled, q_downsampled, prev_I, prev_Q, fm_demod);
+	fmDemodArctan(i_downsampled, q_downsampled, rf_states.prev_I, rf_states.prev_Q, fm_demod);
 }
 
 void backend(const int mode, const float audio_Fs, const int audio_decim, const int audio_upsample, const AudioFilter &audio_filters, AudioState &audio_states, PLLState &pll_states, const std::vector<float> &fm_demod, std::vector<float> &audio_block, std::vector<float> &stereo_left, std::vector<float> &stereo_right)
@@ -208,11 +210,11 @@ int main(int argc, char* argv[])
 			break;
 		case 3://output Fs = 44.1k
 			rf_Fs = 1.92e6;
-			rf_decim = 15;
+			rf_decim = 5;
 
-			audio_Fs = 128e3;
+			audio_Fs = 384e3;
 			audio_decim = 1280;
-			audio_upsample = 441;
+			audio_upsample = 147;
 			audio_taps = num_taps * audio_upsample;
 
 			block_size =  10* audio_decim * rf_decim *2	;
