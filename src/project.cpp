@@ -13,6 +13,12 @@ Ontario, Canada
 #include "genfunc.h"
 #include "iofunc.h"
 #include "logfunc.h"
+#include "threadSafeQ.cpp"
+#include <iostream>
+#include <thread>
+#include <cstdio>
+#include <queue>
+#include <mutex>
 
 using namespace std;
 
@@ -46,7 +52,7 @@ struct PLLState {
     float nco_state = 1.0;
 };
 
-void frontend(const int mode, const float rf_decim, const std::vector<float> &rf_coeff, RFState &rf_states, const std::vector<float> &iq_data, std::vector<float> &fm_demod)
+void frontend(const int mode, const float rf_decim, const std::vector<float> &rf_coeff, RFState &rf_states, const std::vector<float> &iq_data, std::vector<float> &fm_demod, threadSafeQ &q)
 {
 	std::vector<float> i_samples(iq_data.size()/2);
 	std::vector<float> q_samples(iq_data.size()/2);
@@ -66,9 +72,11 @@ void frontend(const int mode, const float rf_decim, const std::vector<float> &rf
 	downsampleBlockConvolveFIR(rf_decim, q_downsampled, q_samples, rf_coeff, rf_states.q_state_rf);
 	// use i and q data to obtain demodulated data
 	fmDemodArctan(i_downsampled, q_downsampled, rf_states.prev_I, rf_states.prev_Q, fm_demod);
+
+	q.enqueue(fm_demod);
 }
 
-void backend(const int mode, const float audio_Fs, const int audio_decim, const int audio_upsample, const AudioFilter &audio_filters, AudioState &audio_states, PLLState &pll_states, const std::vector<float> &fm_demod, std::vector<float> &audio_block, std::vector<float> &stereo_left, std::vector<float> &stereo_right)
+void backend(const int mode, const float audio_Fs, const int audio_decim, const int audio_upsample, const AudioFilter &audio_filters, AudioState &audio_states, PLLState &pll_states, const std::vector<float> &fm_demod, std::vector<float> &audio_block, std::vector<float> &stereo_left, std::vector<float> &stereo_right, threadSafeQ &q)
 {
 	std::vector<float> pilot_filtered;
 	std::vector<float> stereo_filtered;
@@ -90,14 +98,17 @@ void backend(const int mode, const float audio_Fs, const int audio_decim, const 
 	// std::vector<float> vector_index;
 	// std::vector<float> vector_data;
 
-	delayBlock(fm_demod, audio_states.mono_delay_state, mono_delay);
+	std::vector<float> dequeuedFMDemod;
+    dequeuedFMDemod = q.dequeue();
+
+	delayBlock(dequeuedFMDemod, audio_states.mono_delay_state, mono_delay);
 
 	resampleBlockConvolveFIR(audio_upsample, audio_decim, audio_block, mono_delay, audio_filters.audio_coeff, audio_states.state_audio);
 	
 	//----------start stereo------------
 
-	blockConvolveFIR(pilot_filtered, fm_demod, audio_filters.pilot_coeff, audio_states.pilot_state);
-	blockConvolveFIR(stereo_filtered, fm_demod, audio_filters.stereo_coeff, audio_states.stereo_state);
+	blockConvolveFIR(pilot_filtered, dequeuedFMDemod, audio_filters.pilot_coeff, audio_states.pilot_state);
+	blockConvolveFIR(stereo_filtered, dequeuedFMDemod, audio_filters.stereo_coeff, audio_states.stereo_state);
 	
 	fmPLL(pilot_filtered, pll_freq, audio_Fs, ncoScale, phaseAdjust, normBandwidth, ncoOut, pll_states.feedbackI, pll_states.feedbackQ, pll_states.integrator, pll_states.phaseEst, pll_states.trigOffset, pll_states.nco_state);
 
@@ -289,11 +300,18 @@ int main(int argc, char* argv[])
 			exit(1);
 		}
 		
-		// do front-end stuff (get fm_demod)
-		frontend(mode, rf_decim, rf_coeff, rf_states, iq_data, fm_demod_block);
-		// do back-end stuff
-		backend(mode, audio_Fs, audio_decim, audio_upsample, audio_filters, audio_states, pll_states, fm_demod_block, audio_data_block, stereo_data_left_block, stereo_data_right_block);
+		// // do front-end stuff (get fm_demod)
+		// frontend(mode, rf_decim, rf_coeff, rf_states, iq_data, fm_demod_block);
+		// // do back-end stuff
+		// backend(mode, audio_Fs, audio_decim, audio_upsample, audio_filters, audio_states, pll_states, fm_demod_block, audio_data_block, stereo_data_left_block, stereo_data_right_block);
 		
+		std::thread frontendThread = std::thread(frontend, std::ref(mode), std::ref(rf_decim), std::ref(rf_coeff), std::ref(rf_states), std::ref(iq_data), std::ref(fm_demod_block), std::ref(q));//threadSafeQ q);
+        
+        std::thread backendThread = std::thread(backend, std::ref(mode), std::ref(audio_Fs), std::ref(audio_decim), std::ref(audio_upsample), std::ref(audio_filters), std::ref(audio_states), std::ref(pll_states), std::ref(fm_demod_block), std::ref(audio_data_block), std::ref(stereo_data_left_block), std::ref(stereo_data_right_block), std::ref(q));
+        
+        frontendThread.join();
+        backendThread.join();
+
 		if (mono) {
 			processed_data.assign(audio_data_block.begin(), audio_data_block.end());
 		} else {
