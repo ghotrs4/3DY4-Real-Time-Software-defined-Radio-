@@ -74,10 +74,10 @@ from fmSupportLib import fmDemodArctan, fmPlotPSD
 # the radio-frequency (RF) sampling rate
 # this sampling rate is either configured on RF hardware
 # or documented when a raw file with IQ samples is provided
-rf_Fs = 2.4e6
+rf_Fs = 1.92e6
 
 # the cutoff frequency to extract the FM channel from raw IQ data
-rf_Fc = 100e3
+rf_Fc = 64e3
 
 # the number of taps for the low-pass filter to extract the FM channel
 # this default value for the width of the impulse response should be changed
@@ -88,27 +88,27 @@ rf_taps = 101
 # the decimation rate when reducing the front end sampling rate (i.e., RF)
 # to a smaller samping rate at the intermediate frequency (IF) where
 # the demodulated data will be split into the mono/stereo/radio data channels
-rf_decim = 10
+rf_decim = 15
 
 # audio sampling rate (we assume audio will be at 48 KSamples/sec)
-audio_Fs = 48e3
+audio_Fs = 32e3
 # should be the same as rf_Fs / rf_decim / audio_decim
 
 # complete your own settings for the mono channel
 # (cutoff freq, audio taps, decimation rate, ...)
 audio_Fc = 16e3 # change as needed (see spec in lab document)
-audio_decim = 5 # change as needed (see spec in lab document)
+audio_decim = 4 # change as needed (see spec in lab document)
 audio_taps = 101
 
 # flag that keeps track if your code is running for
 # in-lab (il_vs_th = 0) vs takehome (il_vs_th = 1)
-il_vs_th = 1
+il_vs_th = 0
 
 if __name__ == "__main__":
 
 	# read the raw IQ data from the recorded file
 	# IQ data is assumed to be in 8-bits unsigned (and interleaved)
-	in_fname = "../data/iq_samples.raw"
+	in_fname = "../data/nes192M.raw"
 	raw_data = np.fromfile(in_fname, dtype='uint8')
 	print("Read raw RF data from \"" + in_fname + "\" in unsigned 8-bit format")
 	# IQ data is normalized between -1 and +1 in 32-bit float format
@@ -144,7 +144,7 @@ if __name__ == "__main__":
 	if il_vs_th == 0:
 		# to be updated by you during the in-lab session based on firwin
 		# same principle  as for rf_coeff (but different arguments, of course)
-		audio_coeff = signal.firwin(audio_taps, audio_Fc/(audio_Fs/2), window=('hann'))
+		audio_coeff = signal.firwin(audio_taps, audio_Fc/((rf_Fs/rf_decim)/2), window=('hann'))
 	else:
 		# to be updated by you for the takehome exercise
 		# with your own code for impulse response generation
