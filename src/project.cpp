@@ -146,6 +146,7 @@ int main(int argc, char* argv[])
 {
 	int mode = 0;
 	bool mono = true;
+	threadSafeQ q = threadSafeQ();
 	short int num_taps = 101;
 	std::string in_fname;
 	int block_size;
