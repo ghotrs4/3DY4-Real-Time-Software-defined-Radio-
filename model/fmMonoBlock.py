@@ -14,7 +14,8 @@ import numpy as np
 import math
 
 # use fmDemodArctan and fmPlotPSD
-from fmSupportLib import fmDemodArctan, fmPlotPSD
+from fmSupportLib import fmDemodArctan, fmPlotPSD, plotSamples
+from fmRRC import impulseResponseRootRaisedCosine
 # for take-home add your functions
 
 # rf_Fs = 1.92e6;
@@ -55,7 +56,16 @@ audio_Fc = 16e3
 
 final_Fs = 48e3
 
-in_fname = "../data/2400s.raw"
+#RDS paramaters
+RDS_decim = 120
+RDS_upsample = 19
+RDS_taps = 101
+RDS_taps*=RDS_upsample
+RDS_Fc = 3e3
+sps = 16
+RDS_Fs = sps*2375
+
+in_fname = "../data/samples3.raw"
 
 # flag that keeps track if your code is running for
 # in-lab (il_vs_th = 0) vs takehome (il_vs_th = 1)
@@ -137,7 +147,7 @@ def fmPll(pllIn, freq, Fs, ncoScale = 1.0, phaseAdjust = 0.0, normBandwidth = 0.
 		state.feedbackQ = math.sin(trigArg)
 
 		#return in-phase for stereo, both I and Q for RDS...
-		ncoOut[k+1] = math.cos(trigArg*ncoScale + phaseAdjust)
+		ncoOut[k+1] = math.sin(trigArg*ncoScale + phaseAdjust)
 	state.ncoState = ncoOut[len(pllIn)]
 	ncoOut=ncoOut[:-1]
 	return ncoOut
@@ -163,6 +173,11 @@ def pointwiseSubtract(input1, input2):
 	return output
 def manchesterEncoder():
 	pass
+def squaringNonlinearity(x):
+    y = []  # Initialize an empty list to store the squared values
+    for i in range(len(x)):
+        y.append(x[i] * x[i])  # Square each element and append to y
+    return y
 
 if __name__ == "__main__":
 
@@ -193,6 +208,22 @@ if __name__ == "__main__":
 	pllState.ncoState = 1.0
 	pllState.trigOffset = 0
 	ncoOut = np.zeros(1)
+	#RDS variabls
+	pll_freq_RDS = 114e3
+	ncoScale_RDS = 0.5
+	phaseAdjust_RDS = 0
+	normBandwidth_RDS = 0.003
+
+	#init RDS PLL states
+	pllStateRDS = EmptyObject()
+	pllStateRDS.integrator = 0.0
+	pllStateRDS.phaseEst = 0.0
+	pllStateRDS.feedbackI = 1.0
+	pllStateRDS.feedbackQ = 0.0
+	pllStateRDS.ncoState = 1.0
+	pllStateRDS.trigOffset = 0
+	ncoOutRDS = np.zeros(1)
+
 	#band pass filter coefficients
 	lowcut = 22e3/(audio_Fs/2)
 	highcut = 54e3/(audio_Fs/2)
@@ -218,6 +249,39 @@ if __name__ == "__main__":
 
 	stereo_left_data = np.empty(1)
 	stereo_right_data = np.empty(1)
+
+	# #RDS Channel Extraction Variables
+	lowcut = 54e3/(audio_Fs/2)
+	highcut = 60e3/(audio_Fs/2)
+	RDS_coeff = signal.firwin(rf_taps, [lowcut, highcut], window=('hann'), pass_zero=False)
+	RDS_state = np.zeros(rf_taps-1)
+	RDS_filtered = np.zeros(1)
+	
+
+	# #RDS Carrier Extraction Variables
+	lowcut = 113.5e3/(audio_Fs/2)
+	highcut = 114.5e3/(audio_Fs/2)
+	RDS_Carrier_coeff = signal.firwin(rf_taps, [lowcut, highcut], window=('hann'), pass_zero=False)
+	RDS_Squared = np.zeros(1)
+	RDS_Carrier_state = np.zeros(rf_taps-1)
+	RDS_Carrier_filtered = np.zeros(1)
+
+	# #RDS Delay Path Variables
+	RDS_delay_state = np.zeros(int(rf_taps/2))
+	RDS_delay = np.zeros(5) #arbitrary, gets resized
+
+	# #RDS Modulation Variables
+	RDS_mixed = np.zeros(1)
+	RDS_lowpass = np.zeros(1)
+	RDS_lowpass_state = np.zeros(RDS_taps-1)
+
+
+	RDS_lpf_coeff = signal.firwin(RDS_taps*RDS_upsample, RDS_Fc/(audio_Fs*RDS_upsample/2))
+	RDS_lpf_coeff=RDS_lpf_coeff*RDS_upsample
+
+	# #RRC Variables
+	RRC_Final = np.zeros(1)
+	RRC_state = np.zeros(RDS_taps-1)
 
 	# coefficients for the filter to extract mono audio
 	if il_vs_th == 0:
@@ -247,7 +311,7 @@ if __name__ == "__main__":
 
 	# select a block_size that is a multiple of KB
 	# and a multiple of decimation factors
-	block_size = 1024 * rf_decim * audio_decim * 2
+	block_size = 25 * RDS_decim * rf_decim * audio_decim * 2
 	block_count = 0
 
 	# states needed for continuity in block processing
@@ -327,15 +391,39 @@ if __name__ == "__main__":
 		stereo_right_data = np.concatenate((stereo_right_data, stereo_right))
 		#
 
+		#-------------RDS---------------
+		#RDS Channel Extraction
+		RDS_filtered, RDS_state = convolve(fm_demod, RDS_coeff, RDS_state)
+
+		# #RDS Carrier Extraction
+		RDS_Squared = squaringNonlinearity(RDS_filtered)
+		RDS_Carrier_filtered, RDS_Carrier_state = convolve(RDS_Squared, RDS_Carrier_coeff, RDS_Carrier_state)
+
+		# #RDS Delay Path
+		RDS_delay, RDS_delay_state = delayBlock(RDS_filtered, RDS_delay_state)
+
+		# #RDS pll
+		ncoOutRDS = fmPll(RDS_Carrier_filtered, pll_freq_RDS, audio_Fs, ncoScale_RDS, phaseAdjust_RDS, normBandwidth_RDS, pllStateRDS)
+		RDS_mixed = pointwiseMultiply(ncoOutRDS, RDS_delay)
+
+		# #Outputs the downsampled and low-pass filtered RDS
+		RDS_lowpass, RDS_lowpass_state = resampler(RDS_upsample, RDS_decim, RDS_mixed, RDS_lpf_coeff, RDS_lowpass_state)
+
+		# #Generates root raised cosine impulse response
+		RRC_Impulse = impulseResponseRootRaisedCosine(RDS_Fs, RDS_taps)
+		RRC_Final, RRC_state = convolve(RDS_lowpass, RRC_Impulse, RRC_state)
+
+
 		# to save runtime select the range of blocks to log data
 		# this includes both saving binary files as well plotting PSD
 		# below we assume we want to plot for graphs for blocks 10 and 11
-		if block_count >= 5 and block_count < 7:
+		if block_count >= 4 and block_count < 5:
 
 			# plot PSD of selected block after FM demodulation
 			ax0.clear()
-			fmPlotPSD(ax0, audio_block, (final_Fs)/1e3, subfig_height[0], \
-					'PSD audio_block (block ' + str(block_count) + ')')
+			#fmPlotPSD(ax0, audio_block, (final_Fs)/1e3, subfig_height[0], \
+			#		'PSD audio_block (block ' + str(block_count) + ')')
+			plotSamples(ax0, RRC_Final, 2, 10, "RDS after Root raised cosine")
 			# output binary file name (where samples are written from Python)
 			#fm_demod_fname = "../data/fm_demod_" + str(block_count) + ".bin"
 			# create binary file where each sample is a 32-bit float
@@ -355,7 +443,7 @@ if __name__ == "__main__":
 
 			# save figure to file
 			fig.savefig("../data/fmMonoBlock" + str(block_count) + ".png")
-			#exit()
+			exit()
 
 		block_count += 1
 

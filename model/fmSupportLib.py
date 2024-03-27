@@ -190,6 +190,20 @@ def fmPlotPSD(ax, samples, Fs, height, title):
 	ax.set_xlabel('Frequency (kHz)')
 	ax.set_ylabel('PSD (db/Hz)')
 	ax.set_title(title)
+def plotSamples(ax, x, height, decim, Title):
+    samples = np.empty(int(len(x)))
+    print("total RDS samples in block: " +str(len(x)))
+    for i in range(int(len(x))):
+        samples[i]=i
+    samples = samples[0:int(len(samples)/decim)]
+    x = x[0:int(len(x)/decim)]
+    ax.plot(samples, x)
+
+    y_max = height/2
+    y_min = -height/2
+    ax.set_ylim([y_min, y_max])
+
+    ax.set(xlabel="Samples", ylabel="Amplitude", title=Title)
 
 if __name__ == "__main__":
 
