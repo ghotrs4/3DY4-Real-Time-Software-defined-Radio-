@@ -47,15 +47,15 @@ rf_taps = 101
 rf_decim = 10
 
 audio_Fs = 240e3
-audio_decim = 800
-audio_upsample = 147
+audio_decim = 5
+audio_upsample = 1
 audio_taps = 101
 audio_taps*=audio_upsample
 audio_Fc = 16e3
 
-final_Fs = 44.1e3
+final_Fs = 48e3
 
-in_fname = "../data/2400.raw"
+in_fname = "../data/2400s.raw"
 
 # flag that keeps track if your code is running for
 # in-lab (il_vs_th = 0) vs takehome (il_vs_th = 1)
@@ -149,7 +149,7 @@ def delayBlock(input_block, state_block):
 def pointwiseMultiply(input1, input2):
 	output = np.zeros(len(input1))
 	for i in range(len(input1)):
-		output[i] = input1[i]*input2[i]
+		output[i] = input1[i]*input2[i]*2
 	return output
 def pointwiseAdd(input1, input2):
 	output = np.zeros(len(input1))
@@ -161,6 +161,9 @@ def pointwiseSubtract(input1, input2):
 	for i in range(len(input1)):
 		output[i] = input1[i]-input2[i]
 	return output
+def manchesterEncoder():
+	pass
+
 if __name__ == "__main__":
 
 	# read the raw IQ data from the recorded file
@@ -237,14 +240,14 @@ if __name__ == "__main__":
 		audio_coeff = h
 
 	# set up the subfigures for plotting
-	subfig_height = np.array([0.8, 2, 1.6]) # relative heights of the subfigures
+	subfig_height = np.array([2, 2, 2]) # relative heights of the subfigures
 	plt.rc('figure', figsize=(7.5, 7.5))	# the size of the entire figure
 	fig, (ax0, ax1, ax2) = plt.subplots(nrows=3, gridspec_kw={'height_ratios': subfig_height})
 	fig.subplots_adjust(hspace = .6)
 
 	# select a block_size that is a multiple of KB
 	# and a multiple of decimation factors
-	block_size = 10 * rf_decim * audio_decim * 2
+	block_size = 1024 * rf_decim * audio_decim * 2
 	block_count = 0
 
 	# states needed for continuity in block processing
@@ -303,7 +306,7 @@ if __name__ == "__main__":
 			# with your own code for BLOCK convolution
 			#audio_filt, state = convolve(fm_demod, audio_coeff, state)
 			mono_delay, mono_delay_state = delayBlock(fm_demod, mono_delay_state)
-			audio_block, state = resampler(audio_upsample, audio_decim, fm_demod, audio_coeff, state)
+			audio_block, state = resampler(audio_upsample, audio_decim, mono_delay, audio_coeff, state)
 		
 		pilot_filtered, pilot_state = convolve(fm_demod, pilot_coeff, pilot_state)
 		stereo_filtered, stereo_state = convolve(fm_demod, stereo_coeff, stereo_state)
@@ -315,6 +318,7 @@ if __name__ == "__main__":
 
 		stereo_left = pointwiseAdd(audio_block, stereo_lowpass)
 		stereo_right = pointwiseSubtract(audio_block, stereo_lowpass)
+
 		# concatenate the most recently processed audio_block
 		# to the previous blocks stored already in audio_data
 		#
@@ -330,8 +334,8 @@ if __name__ == "__main__":
 
 			# plot PSD of selected block after FM demodulation
 			ax0.clear()
-			fmPlotPSD(ax0, fm_demod, (rf_Fs/rf_decim)/1e3, subfig_height[0], \
-					'Demodulated FM (block ' + str(block_count) + ')')
+			fmPlotPSD(ax0, audio_block, (final_Fs)/1e3, subfig_height[0], \
+					'PSD audio_block (block ' + str(block_count) + ')')
 			# output binary file name (where samples are written from Python)
 			#fm_demod_fname = "../data/fm_demod_" + str(block_count) + ".bin"
 			# create binary file where each sample is a 32-bit float
@@ -340,17 +344,18 @@ if __name__ == "__main__":
 			# plot PSD of selected block after extracting mono audio
 			#audio_filt = signal.lfilter(audio_coeff, 1.0, fm_demod)
 			ax1.clear()
-			fmPlotPSD(ax1, stereo_mixed, (audio_Fs)/1e3, subfig_height[1], \
-					'PSD for stereo_mixed (block ' + str(block_count) + ')')
+			fmPlotPSD(ax1,stereo_lowpass, (final_Fs)/1e3, subfig_height[1], \
+					'PSD stereo_lowpass (block ' + str(block_count) + ')')
 
 			# plot PSD of selected block after downsampling mono audio
 			#audio_block = audio_filt[::audio_decim]
 			ax2.clear()
-			fmPlotPSD(ax2, stereo_lowpass, (final_Fs)/1e3, subfig_height[2], \
-					'PSD of stereo_lowpass (block ' + str(block_count) + ')')
+			fmPlotPSD(ax2, stereo_right_data, (final_Fs)/1e3, subfig_height[2], \
+					'PSD stereo_right_data (block ' + str(block_count) + ')')
 
 			# save figure to file
 			fig.savefig("../data/fmMonoBlock" + str(block_count) + ".png")
+			#exit()
 
 		block_count += 1
 
@@ -360,7 +365,7 @@ if __name__ == "__main__":
 	out_fname = "../data/fmMonoBlock.wav"
 	#wavfile.write(out_fname, int(final_Fs), np.int16((audio_data/2)*32767))
 	stereo_data = np.vstack((stereo_left_data, stereo_right_data)).T
-	wavfile.write(out_fname, int(final_Fs), np.int16((stereo_data/2)*32767))
+	wavfile.write(out_fname, int(final_Fs), np.int16((stereo_data/2)*32767))#touched
 	print("Written audio samples to \"" + out_fname + "\" in signed 16-bit format")
 
 	# uncomment assuming you wish to show some plots
