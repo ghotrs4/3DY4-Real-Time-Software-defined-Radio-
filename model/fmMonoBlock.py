@@ -65,7 +65,7 @@ RDS_Fc = 3e3
 sps = 16
 RDS_Fs = sps*2375
 
-in_fname = "../data/samples3.raw"
+in_fname = "../data/2400.raw"
 
 # flag that keeps track if your code is running for
 # in-lab (il_vs_th = 0) vs takehome (il_vs_th = 1)
@@ -128,7 +128,10 @@ def fmPll(pllIn, freq, Fs, ncoScale = 1.0, phaseAdjust = 0.0, normBandwidth = 0.
 	Ki = (normBandwidth*normBandwidth)*Ci
 
 	ncoOut = np.empty(len(pllIn)+1)
+	q_ncoOut = np.empty(len(pllIn)+1)
+
 	ncoOut[0] = state.ncoState
+	q_ncoOut[0] = state.q_ncoState
 	for k in range(len(pllIn)):
 		errorI = pllIn[k] * (+state.feedbackI)  # complex conjugate of the
 		errorQ = pllIn[k] * (-state.feedbackQ)  # feedback complex exponential
@@ -148,18 +151,20 @@ def fmPll(pllIn, freq, Fs, ncoScale = 1.0, phaseAdjust = 0.0, normBandwidth = 0.
 
 		#return in-phase for stereo, both I and Q for RDS...
 		ncoOut[k+1] = math.cos(trigArg*ncoScale + phaseAdjust)
+		q_ncoOut[k+1] = math.sin(trigArg*ncoScale + phaseAdjust)
 	state.ncoState = ncoOut[len(pllIn)]
-	ncoOut=ncoOut[:-1]
-	return ncoOut
+	state.q_ncoState = q_ncoOut[len(pllIn)]
+
+	return ncoOut[:-1], q_ncoOut[:-1]
 def delayBlock(input_block, state_block):
 	output_block = np.concatenate((state_block, input_block[:-len(state_block)]))
 	state_block = input_block[-len(state_block):]
 
 	return output_block, state_block
-def pointwiseMultiply(input1, input2):
+def pointwiseMultiply(input1, input2, gain):
 	output = np.zeros(len(input1))
 	for i in range(len(input1)):
-		output[i] = input1[i]*input2[i]*2
+		output[i] = input1[i]*input2[i]*gain
 	return output
 def pointwiseAdd(input1, input2):
 	output = np.zeros(len(input1))
@@ -206,11 +211,14 @@ if __name__ == "__main__":
 	pllState.ncoState = 1.0
 	pllState.trigOffset = 0
 	ncoOut = np.zeros(1)
+
+	pllState.q_ncoState = 1.0
+
 	#RDS variabls
 	pll_freq_RDS = 114e3
 	ncoScale_RDS = 0.5
 	phaseAdjust_RDS = 0
-	normBandwidth_RDS = 0.003
+	normBandwidth_RDS = 0.001
 
 	#init RDS PLL states
 	pllStateRDS = EmptyObject()
@@ -221,6 +229,9 @@ if __name__ == "__main__":
 	pllStateRDS.ncoState = 1.0
 	pllStateRDS.trigOffset = 0
 	ncoOutRDS = np.zeros(1)
+
+	pllStateRDS.q_ncoState = 1.0
+	q_ncoOutRDS = np.zeros(1)
 
 	#band pass filter coefficients
 	lowcut = 22e3/(audio_Fs/2)
@@ -281,6 +292,14 @@ if __name__ == "__main__":
 	RRC_Final = np.zeros(1)
 	RRC_state = np.zeros(RDS_taps-1)
 
+	#quadrature debug
+	q_RDS_mixed = np.zeros(1)
+	q_RDS_lowpass = np.zeros(1)
+	q_RDS_lowpass_state = np.zeros(RDS_taps-1)
+
+	# #RRC Variables
+	q_RRC_Final = np.zeros(1)
+	q_RRC_state = np.zeros(RDS_taps-1)
 	#RDS
 	manchesterEncoded = np.empty(1)
 	m_index = 0.0
@@ -307,7 +326,7 @@ if __name__ == "__main__":
 		audio_coeff = h
 
 	# set up the subfigures for plotting
-	subfig_height = np.array([2, 2, 2]) # relative heights of the subfigures
+	subfig_height = np.array([2, 2, 4]) # relative heights of the subfigures
 	plt.rc('figure', figsize=(7.5, 7.5))	# the size of the entire figure
 	fig, (ax0, ax1, ax2) = plt.subplots(nrows=3, gridspec_kw={'height_ratios': subfig_height})
 	fig.subplots_adjust(hspace = .6)
@@ -377,8 +396,8 @@ if __name__ == "__main__":
 		pilot_filtered, pilot_state = convolve(fm_demod, pilot_coeff, pilot_state)
 		stereo_filtered, stereo_state = convolve(fm_demod, stereo_coeff, stereo_state)
 
-		ncoOut = fmPll(pilot_filtered, pll_freq, audio_Fs, ncoScale, phaseAdjust, normBandwidth, pllState)
-		stereo_mixed = pointwiseMultiply(ncoOut, stereo_filtered)
+		ncoOut, _ = fmPll(pilot_filtered, pll_freq, audio_Fs, ncoScale, phaseAdjust, normBandwidth, pllState)
+		stereo_mixed = pointwiseMultiply(ncoOut, stereo_filtered, 2)
 
 		stereo_lowpass, stereo_lowpass_state = resampler(audio_upsample, audio_decim, stereo_mixed, audio_coeff, stereo_lowpass_state)
 
@@ -405,8 +424,8 @@ if __name__ == "__main__":
 		RDS_delay, RDS_delay_state = delayBlock(RDS_filtered, RDS_delay_state)
 
 		# #RDS pll
-		ncoOutRDS = fmPll(RDS_Carrier_filtered, pll_freq_RDS, audio_Fs, ncoScale_RDS, phaseAdjust_RDS, normBandwidth_RDS, pllStateRDS)
-		RDS_mixed = pointwiseMultiply(ncoOutRDS, RDS_delay)
+		ncoOutRDS, q_ncoOutRDS = fmPll(RDS_Carrier_filtered, pll_freq_RDS, audio_Fs, ncoScale_RDS, phaseAdjust_RDS, normBandwidth_RDS, pllStateRDS)
+		RDS_mixed = pointwiseMultiply(ncoOutRDS, RDS_delay, 1)
 
 		# #Outputs the downsampled and low-pass filtered RDS
 		RDS_lowpass, RDS_lowpass_state = resampler(RDS_upsample, RDS_decim, RDS_mixed, RDS_lpf_coeff, RDS_lowpass_state)
@@ -415,19 +434,25 @@ if __name__ == "__main__":
 		RRC_Impulse = impulseResponseRootRaisedCosine(RDS_Fs, RDS_taps)
 		RRC_Final, RRC_state = convolve(RDS_lowpass, RRC_Impulse, RRC_state)
 
-		manchesterEncoded, m_index, m_found = encode(RRC_Final, sps, m_index, m_found)
+		#quadrature debug path
+		q_RDS_mixed = pointwiseMultiply(q_ncoOutRDS, RDS_delay, 1)
+		q_RDS_lowpass, q_RDS_lowpass_state = resampler(RDS_upsample, RDS_decim, q_RDS_mixed, RDS_lpf_coeff, q_RDS_lowpass_state)
+		q_RRC_Final, q_RRC_state = convolve(q_RDS_lowpass, RRC_Impulse, q_RRC_state)
+
+
+		#manchesterEncoded, m_index, m_found = encode(RRC_Final, sps, m_index, m_found)
 
 
 		# to save runtime select the range of blocks to log data
 		# this includes both saving binary files as well plotting PSD
 		# below we assume we want to plot for graphs for blocks 10 and 11
-		if block_count >= 4 and block_count < 5:
+		if block_count >= 6 and block_count < 7:
 
 			# plot PSD of selected block after FM demodulation
 			ax0.clear()
 			#fmPlotPSD(ax0, audio_block, (final_Fs)/1e3, subfig_height[0], \
 			#		'PSD audio_block (block ' + str(block_count) + ')')
-			plotSamples(ax0, RRC_Final, 2, 10, "RDS after Root raised cosine")
+			plotSamples(ax0, RRC_Final, 2, 1, "RDS RRC In-phase")
 			# output binary file name (where samples are written from Python)
 			#fm_demod_fname = "../data/fm_demod_" + str(block_count) + ".bin"
 			# create binary file where each sample is a 32-bit float
@@ -436,15 +461,16 @@ if __name__ == "__main__":
 			# plot PSD of selected block after extracting mono audio
 			#audio_filt = signal.lfilter(audio_coeff, 1.0, fm_demod)
 			ax1.clear()
-			plotSamples(ax1, manchesterEncoded, 2, 1, "RDS Manchester encoded")
+			plotSamples(ax1, q_RRC_Final, 2, 1, "RDS RRC Quadrature")
 			#fmPlotPSD(ax1,stereo_lowpass, (final_Fs)/1e3, subfig_height[1], \
 			#		'PSD stereo_lowpass (block ' + str(block_count) + ')')
 
 			# plot PSD of selected block after downsampling mono audio
 			#audio_block = audio_filt[::audio_decim]
 			ax2.clear()
-			fmPlotPSD(ax2, stereo_right_data, (final_Fs)/1e3, subfig_height[2], \
-					'PSD stereo_right_data (block ' + str(block_count) + ')')
+			ax2.scatter(RRC_Final, q_RRC_Final, s=10)
+			#fmPlotPSD(ax2, stereo_right_data, (final_Fs)/1e3, subfig_height[2], \
+					#'PSD stereo_right_data (block ' + str(block_count) + ')')
 
 			# save figure to file
 			fig.savefig("../data/fmMonoBlock" + str(block_count) + ".png")
