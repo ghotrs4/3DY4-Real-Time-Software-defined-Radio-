@@ -14,7 +14,7 @@ import numpy as np
 import math
 
 # use fmDemodArctan and fmPlotPSD
-from fmSupportLib import fmDemodArctan, fmPlotPSD, plotSamples
+from fmSupportLib import fmDemodArctan, fmPlotPSD, plotSamples, encode
 from fmRRC import impulseResponseRootRaisedCosine
 # for take-home add your functions
 
@@ -147,7 +147,7 @@ def fmPll(pllIn, freq, Fs, ncoScale = 1.0, phaseAdjust = 0.0, normBandwidth = 0.
 		state.feedbackQ = math.sin(trigArg)
 
 		#return in-phase for stereo, both I and Q for RDS...
-		ncoOut[k+1] = math.sin(trigArg*ncoScale + phaseAdjust)
+		ncoOut[k+1] = math.cos(trigArg*ncoScale + phaseAdjust)
 	state.ncoState = ncoOut[len(pllIn)]
 	ncoOut=ncoOut[:-1]
 	return ncoOut
@@ -171,8 +171,6 @@ def pointwiseSubtract(input1, input2):
 	for i in range(len(input1)):
 		output[i] = input1[i]-input2[i]
 	return output
-def manchesterEncoder():
-	pass
 def squaringNonlinearity(x):
     y = []  # Initialize an empty list to store the squared values
     for i in range(len(x)):
@@ -283,6 +281,11 @@ if __name__ == "__main__":
 	RRC_Final = np.zeros(1)
 	RRC_state = np.zeros(RDS_taps-1)
 
+	#RDS
+	manchesterEncoded = np.empty(1)
+	m_index = 0.0
+	m_found = False
+
 	# coefficients for the filter to extract mono audio
 	if il_vs_th == 0:
 		# to be updated by you during the in-lab session based on firwin
@@ -331,7 +334,6 @@ if __name__ == "__main__":
 	# if the number of samples in the last block is less than the block size
 	# it is fine to ignore the last few samples from the raw IQ file
 	while (block_count+1)*block_size < len(iq_data):
-
 
 		print('Processing block ' + str(block_count))
 		# filter to extract the FM channel (I samples are even, Q samples are odd)
@@ -413,6 +415,8 @@ if __name__ == "__main__":
 		RRC_Impulse = impulseResponseRootRaisedCosine(RDS_Fs, RDS_taps)
 		RRC_Final, RRC_state = convolve(RDS_lowpass, RRC_Impulse, RRC_state)
 
+		manchesterEncoded, m_index, m_found = encode(RRC_Final, sps, m_index, m_found)
+
 
 		# to save runtime select the range of blocks to log data
 		# this includes both saving binary files as well plotting PSD
@@ -432,8 +436,9 @@ if __name__ == "__main__":
 			# plot PSD of selected block after extracting mono audio
 			#audio_filt = signal.lfilter(audio_coeff, 1.0, fm_demod)
 			ax1.clear()
-			fmPlotPSD(ax1,stereo_lowpass, (final_Fs)/1e3, subfig_height[1], \
-					'PSD stereo_lowpass (block ' + str(block_count) + ')')
+			plotSamples(ax1, manchesterEncoded, 2, 1, "RDS Manchester encoded")
+			#fmPlotPSD(ax1,stereo_lowpass, (final_Fs)/1e3, subfig_height[1], \
+			#		'PSD stereo_lowpass (block ' + str(block_count) + ')')
 
 			# plot PSD of selected block after downsampling mono audio
 			#audio_block = audio_filt[::audio_decim]

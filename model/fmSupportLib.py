@@ -204,6 +204,25 @@ def plotSamples(ax, x, height, decim, Title):
     ax.set_ylim([y_min, y_max])
 
     ax.set(xlabel="Samples", ylabel="Amplitude", title=Title)
+def encode(signal, sps, K, found):#K(default 0), found(default false) are state vars
+    idx=K
+    output = np.empty(int(len(signal)/sps))
+    if(found == False):
+        max = 0
+        idx = 0
+        for i in range(sps*2):
+            if(abs(signal[i])>max):
+                max = signal[i]
+                idx = i
+                found = True
+
+    for k in range (idx, len(signal), sps):
+        if(signal[k]>0):
+            output[int(k/sps)]=signal[k]
+        else:
+            output[int(k/sps)]=signal[k]
+    k = k % sps
+    return output, k, found
 
 if __name__ == "__main__":
 
