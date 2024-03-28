@@ -228,18 +228,26 @@ void fmPLL(const std::vector<float> &PLLin, const float freq, const float Fs, co
 }
 void delayBlock(const std::vector<float>&input_block, std::vector<float>&state_block, std::vector<float>&output_block){
 	//fm_demod_size: 5120, state_block: 101-1=100
-	output_block.clear();
+	//output_block.clear();
+	
+	output_block.resize(input_block.size());
+	
+	std::copy(state_block.begin(), state_block.end(), output_block.begin());
+	std::copy(input_block.begin(), input_block.end() - state_block.size(), output_block.begin() + state_block.size());
+	//state_block.assign(input_block.end() - state_block.size(), input_block.end());
+	
+	std::copy(input_block.end() - state_block.size(), input_block.end(), state_block.begin());
 
 	//std::cout<<"state_block.size(): "<<state_block.size()<<std::endl;
 	//std::cout<<"input_block.size(): "<<input_block.size()<<std::endl;
 
-	output_block.insert(output_block.end(), state_block.begin(), state_block.end());
-	output_block.insert(output_block.begin()+state_block.size(), input_block.begin(), input_block.end()-state_block.size());
+	//output_block.insert(output_block.end(), state_block.begin(), state_block.end());
+	//output_block.insert(output_block.begin()+state_block.size(), input_block.begin(), input_block.end()-state_block.size());
 
-	int stateSize = state_block.size();
-	state_block.clear();
+	//int stateSize = state_block.size();
+	//state_block.clear();
 	// state_block.assign(input_block.end()-stateSize, input_block.end());
-	state_block.insert(state_block.end(), input_block.end()-stateSize, input_block.end());
+	//state_block.insert(state_block.end(), input_block.end()-stateSize, input_block.end());
 }
 
 void pointwiseMultiply(const std::vector<float>&block1,const std::vector<float>&block2,std::vector<float>&output){
