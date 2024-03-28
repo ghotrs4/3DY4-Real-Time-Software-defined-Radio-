@@ -66,7 +66,7 @@ RDS_Fc = 3e3
 sps = 16
 RDS_Fs = sps*2375
 
-in_fname = "../data/samples3.raw"
+in_fname = "../data/2400.raw"
 
 # flag that keeps track if your code is running for
 # in-lab (il_vs_th = 0) vs takehome (il_vs_th = 1)
@@ -701,49 +701,49 @@ if __name__ == "__main__":
 
 				packet = frame_sync_transmitter(window_data)
 				synced, msgs, offsetState, numErrors, bit_pos = frame_sync_receiver(packet, synced, offsetState, numErrors, bit_pos)
-				process_rds_data(msgs) #RDS application layer
+				#process_rds_data(msgs) #RDS application layer
 				print("msgs.a: ", msgs.a)
 
 		# to save runtime select the range of blocks to log data
 		# this includes both saving binary files as well plotting PSD
-		# below we assume we want to plot for graphs for blocks 10 and 11
-		# if block_count >= 40 and block_count < 41:
+		#below we assume we want to plot for graphs for blocks 10 and 11
+		if block_count >= 7 and block_count < 8:
 
-		# 	# plot PSD of selected block after FM demodulation
-		# 	ax0.clear()
-		# 	#fmPlotPSD(ax0, audio_block, (final_Fs)/1e3, subfig_height[0], \
-		# 	#		'PSD audio_block (block ' + str(block_count) + ')')
-		# 	plotSamples(ax0, RRC_Final, 2, 1, "RDS RRC In-phase")
-		# 	# output binary file name (where samples are written from Python)
-		# 	#fm_demod_fname = "../data/fm_demod_" + str(block_count) + ".bin"
-		# 	# create binary file where each sample is a 32-bit float
-		# 	#fm_demod.astype('float32').tofile(fm_demod_fname)
+			# plot PSD of selected block after FM demodulation
+			ax0.clear()
+			#fmPlotPSD(ax0, audio_block, (final_Fs)/1e3, subfig_height[0], \
+			#		'PSD audio_block (block ' + str(block_count) + ')')
+			plotSamples(ax0, RRC_Final, 2, 1, "RDS RRC In-phase")
+			# output binary file name (where samples are written from Python)
+			#fm_demod_fname = "../data/fm_demod_" + str(block_count) + ".bin"
+			# create binary file where each sample is a 32-bit float
+			#fm_demod.astype('float32').tofile(fm_demod_fname)
 
-		# 	# plot PSD of selected block after extracting mono audio
-		# 	#audio_filt = signal.lfilter(audio_coeff, 1.0, fm_demod)
-		# 	ax1.clear()
-		# 	plotSamples(ax1, q_RRC_Final, 2, 1, "RDS RRC Quadrature")
-		# 	#fmPlotPSD(ax1,stereo_lowpass, (final_Fs)/1e3, subfig_height[1], \
-		# 	#		'PSD stereo_lowpass (block ' + str(block_count) + ')')
+			# plot PSD of selected block after extracting mono audio
+			#audio_filt = signal.lfilter(audio_coeff, 1.0, fm_demod)
+			ax1.clear()
+			plotSamples(ax1, q_RRC_Final, 2, 1, "RDS RRC Quadrature")
+			#fmPlotPSD(ax1,stereo_lowpass, (final_Fs)/1e3, subfig_height[1], \
+			#		'PSD stereo_lowpass (block ' + str(block_count) + ')')
 
-		# 	# plot PSD of selected block after downsampling mono audio
-		# 	#audio_block = audio_filt[::audio_decim]
-		# 	ax2.clear()
-		# 	print("Manchester encoded symbols: "+str(len(RDS_encoded)))
-		# 	ax2.scatter(RDS_encoded, QRDS_encoded, s=10)
-		# 	#fmPlotPSD(ax2, stereo_right_data, (final_Fs)/1e3, subfig_height[2], \
-		# 			#'PSD stereo_right_data (block ' + str(block_count) + ')')
-		# 	ax3.clear()
-		# 	#fmPlotPSD(ax0, audio_block, (final_Fs)/1e3, subfig_height[0], \
-		# 	#		'PSD audio_block (block ' + str(block_count) + ')')
-		# 	x_vec = np.zeros(len(RDS_symbols))
-		# 	for i in range(len(RDS_symbols)):
-		# 		x_vec[i]=i
+			# plot PSD of selected block after downsampling mono audio
+			#audio_block = audio_filt[::audio_decim]
+			ax2.clear()
+			print("Manchester encoded symbols: "+str(len(RDS_encoded)))
+			ax2.scatter(RDS_encoded, QRDS_encoded, s=10)
+			#fmPlotPSD(ax2, stereo_right_data, (final_Fs)/1e3, subfig_height[2], \
+					#'PSD stereo_right_data (block ' + str(block_count) + ')')
+			ax3.clear()
+			#fmPlotPSD(ax0, audio_block, (final_Fs)/1e3, subfig_height[0], \
+			#		'PSD audio_block (block ' + str(block_count) + ')')
+			x_vec = np.zeros(len(RDS_symbols))
+			for i in range(len(RDS_symbols)):
+				x_vec[i]=i
 				
-		# 	ax3.scatter(x_vec, RDS_symbols, s=10)
-		# 	# save figure to file
-		# 	fig.savefig("../data/fmMonoBlock" + str(block_count) + ".png")
-			# exit()
+			ax3.scatter(x_vec, RDS_symbols, s=10)
+			# save figure to file
+			fig.savefig("../data/fmMonoBlock" + str(block_count) + ".png")
+			exit()
 
 		block_count += 1
 

@@ -136,7 +136,7 @@ def process_rds_data(msgs):
 		pass
 	
 	if msgs.d:
-		group_parsed = group_type.join(map(str, msgs.d[0:5]))
+		group_parsed = ''.join(map(str, msgs.d[0:5]))
 		if group_parsed == "00000":
 			char1_coded = ''.join(map(str, msgs.d[0:8]))
 			char2_coded = ''.join(map(str, msgs.d[8:16]))
@@ -153,7 +153,7 @@ def process_rds_data(msgs):
 	PSNS = msgs.d
 	#print(char1)
 	print("PI code:", PIcode)
-	print("Program type:", Program_Type_Codes[PTYcode])
+#	print("Program type:", Program_Type_Codes[PTYcode])
 
 if __name__ == "__main__":
 
