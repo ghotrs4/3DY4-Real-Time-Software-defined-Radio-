@@ -192,7 +192,7 @@ def fmPlotPSD(ax, samples, Fs, height, title):
 	ax.set_title(title)
 def plotSamples(ax, x, height, decim, Title):
     samples = np.empty(int(len(x)))
-    print("total RDS samples in block: " +str(len(x)))
+    print("total samples in block: " +str(len(x)))
     for i in range(int(len(x))):
         samples[i]=i
     samples = samples[0:int(len(samples)/decim)]
@@ -223,6 +223,34 @@ def encode(signal, sps, K, found):#K(default 0), found(default false) are state 
             output[int(k/sps)]=signal[k]
     k = k % sps
     return output, k, found
+def manchesterEncoded(signal, Qsignal, sps, K, found):
+	print("incoming idx is: ", K)
+	idx = K
+	threshold = 0.1
+
+	output = np.empty(int(len(signal)/sps))
+	Qoutput = np.empty(int(len(signal)/sps))
+	encodedSymbols = np.empty(int(len(signal)/sps))
+	if(found == False):
+		max = 0
+		idx = 0
+		for i in range(sps*2):
+			if(abs(signal[i])>max):
+				max = signal[i]
+				idx = i
+				found = True
+	k=0
+	for k in range (idx, len(signal), sps):
+		output[int(k/sps)] = signal[k]
+		Qoutput[int(k/sps)] = Qsignal[k]
+		encodedSymbols[int(k/sps)] = 0 if (signal[k]<0) else 1
+	#end of block sanity check, resync if necessary
+	if(abs(output[int(k/sps)])<threshold and abs(output[int((k-1)/sps)]<threshold)):
+		print("resynced")
+		found=False
+	k = k % sps
+	return output, Qoutput, encodedSymbols, k, found
+
 
 if __name__ == "__main__":
 

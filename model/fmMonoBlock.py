@@ -14,7 +14,7 @@ import numpy as np
 import math
 
 # use fmDemodArctan and fmPlotPSD
-from fmSupportLib import fmDemodArctan, fmPlotPSD, plotSamples, encode
+from fmSupportLib import fmDemodArctan, fmPlotPSD, plotSamples, manchesterEncoded
 from fmRRC import impulseResponseRootRaisedCosine
 # for take-home add your functions
 
@@ -89,8 +89,8 @@ def fmDemodArctanCustom(I, Q, prev_I=0, prev_Q=0):
 
 		# save the state of the current phase
 		# to compute the next derivative
-		prev_I=I[-1]
-		prev_Q=Q[-1]
+	prev_I=I[-1]
+	prev_Q=Q[-1]
 
 	# return both the demodulated samples as well as the last phase
 	# (the last phase is needed to enable continuity for block processing)
@@ -218,7 +218,7 @@ if __name__ == "__main__":
 	pll_freq_RDS = 114e3
 	ncoScale_RDS = 0.5
 	phaseAdjust_RDS = 0
-	normBandwidth_RDS = 0.001
+	normBandwidth_RDS = 0.003
 
 	#init RDS PLL states
 	pllStateRDS = EmptyObject()
@@ -301,9 +301,11 @@ if __name__ == "__main__":
 	q_RRC_Final = np.zeros(1)
 	q_RRC_state = np.zeros(RDS_taps-1)
 	#RDS
-	manchesterEncoded = np.empty(1)
+	RDS_encoded = np.empty(1)
+	QRDS_encoded = np.empty(1)
 	m_index = 0.0
 	m_found = False
+	RDS_symbols = np.array([])
 
 	# coefficients for the filter to extract mono audio
 	if il_vs_th == 0:
@@ -326,14 +328,14 @@ if __name__ == "__main__":
 		audio_coeff = h
 
 	# set up the subfigures for plotting
-	subfig_height = np.array([2, 2, 4]) # relative heights of the subfigures
+	subfig_height = np.array([2, 2, 4, 2]) # relative heights of the subfigures
 	plt.rc('figure', figsize=(7.5, 7.5))	# the size of the entire figure
-	fig, (ax0, ax1, ax2) = plt.subplots(nrows=3, gridspec_kw={'height_ratios': subfig_height})
+	fig, (ax0, ax1, ax2, ax3) = plt.subplots(nrows=4, gridspec_kw={'height_ratios': subfig_height})
 	fig.subplots_adjust(hspace = .6)
 
 	# select a block_size that is a multiple of KB
 	# and a multiple of decimation factors
-	block_size = 25 * RDS_decim * rf_decim * audio_decim * 2
+	block_size =  sps * RDS_decim * rf_decim * audio_decim * 2 * 2
 	block_count = 0
 
 	# states needed for continuity in block processing
@@ -368,7 +370,7 @@ if __name__ == "__main__":
 		q_ds = q_filt[::rf_decim]
 
 		# FM demodulator
-		if il_vs_th == 0:
+		if il_vs_th == 1:
 			fm_demod, state_phase = fmDemodArctan(i_ds, q_ds, state_phase)
 		else:
 			# you will need to implement your own FM demodulation based on:
@@ -440,13 +442,13 @@ if __name__ == "__main__":
 		q_RRC_Final, q_RRC_state = convolve(q_RDS_lowpass, RRC_Impulse, q_RRC_state)
 
 
-		#manchesterEncoded, m_index, m_found = encode(RRC_Final, sps, m_index, m_found)
+		RDS_encoded, QRDS_encoded, RDS_symbols, m_index, m_found = manchesterEncoded(RRC_Final, q_RRC_Final, sps, m_index, m_found)
 
 
 		# to save runtime select the range of blocks to log data
 		# this includes both saving binary files as well plotting PSD
 		# below we assume we want to plot for graphs for blocks 10 and 11
-		if block_count >= 6 and block_count < 7:
+		if block_count >= 4 and block_count < 5:
 
 			# plot PSD of selected block after FM demodulation
 			ax0.clear()
@@ -468,10 +470,18 @@ if __name__ == "__main__":
 			# plot PSD of selected block after downsampling mono audio
 			#audio_block = audio_filt[::audio_decim]
 			ax2.clear()
-			ax2.scatter(RRC_Final, q_RRC_Final, s=10)
+			print("Manchester encoded symbols: "+str(len(RDS_encoded)))
+			ax2.scatter(RDS_encoded, QRDS_encoded, s=10)
 			#fmPlotPSD(ax2, stereo_right_data, (final_Fs)/1e3, subfig_height[2], \
 					#'PSD stereo_right_data (block ' + str(block_count) + ')')
-
+			ax3.clear()
+			#fmPlotPSD(ax0, audio_block, (final_Fs)/1e3, subfig_height[0], \
+			#		'PSD audio_block (block ' + str(block_count) + ')')
+			x_vec = np.zeros(len(RDS_symbols))
+			for i in range(len(RDS_symbols)):
+				x_vec[i]=i
+				
+			ax3.scatter(x_vec, RDS_symbols, s=10)
 			# save figure to file
 			fig.savefig("../data/fmMonoBlock" + str(block_count) + ".png")
 			exit()
