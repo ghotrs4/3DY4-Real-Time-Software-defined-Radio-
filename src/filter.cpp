@@ -79,7 +79,7 @@ void blockConvolveFIR(std::vector<float> &y, const std::vector<float> &x, const 
 		}
 	}
 
-	state = std::vector<float>(x.end() - state.size(), x.end());
+	state.assign(x.end() - state.size(), x.end());
 }
 
 void fmDemodArctan(const std::vector<float> &I, const std::vector<float> &Q, float &prev_I, float &prev_Q, std::vector<float>& fm_demod) {
@@ -136,7 +136,7 @@ void downsampleBlockConvolveFIR(int factor, std::vector<float> &y, const std::ve
         }
     }
 
-    state = std::vector<float>(x.end() - state.size(), x.end());
+    state.assign(x.end() - state.size(), x.end());
 }
 
 void resampleBlockConvolveFIR(int upFactor, int downFactor, std::vector<float> &y, const std::vector<float> &x, const std::vector<float> &h, std::vector<float> &state)
@@ -166,7 +166,7 @@ void resampleBlockConvolveFIR(int upFactor, int downFactor, std::vector<float> &
         }
     }
 
-    state = std::vector<float>(x.end() - state.size(), x.end());
+    state.assign(x.end() - state.size(), x.end());
 
 	// debug_block++;
 
@@ -178,7 +178,7 @@ void fmPLL(const std::vector<float> &PLLin, const float freq, const float Fs, co
 	float Kp = normBandwidth*Cp;
 	float Ki = normBandwidth*normBandwidth*Ci;
 
-	ncoOut.clear();
+	//ncoOut.clear();
 	ncoOut.resize(PLLin.size(), 0.0);
 
 	ncoOut[0] = nco_state;
@@ -228,22 +228,30 @@ void fmPLL(const std::vector<float> &PLLin, const float freq, const float Fs, co
 }
 void delayBlock(const std::vector<float>&input_block, std::vector<float>&state_block, std::vector<float>&output_block){
 	//fm_demod_size: 5120, state_block: 101-1=100
-	output_block.clear();
+	//output_block.clear();
+	
+	output_block.resize(input_block.size());
+	
+	std::copy(state_block.begin(), state_block.end(), output_block.begin());
+	std::copy(input_block.begin(), input_block.end() - state_block.size(), output_block.begin() + state_block.size());
+	//state_block.assign(input_block.end() - state_block.size(), input_block.end());
+	
+	std::copy(input_block.end() - state_block.size(), input_block.end(), state_block.begin());
 
 	//std::cout<<"state_block.size(): "<<state_block.size()<<std::endl;
 	//std::cout<<"input_block.size(): "<<input_block.size()<<std::endl;
 
-	output_block.insert(output_block.end(), state_block.begin(), state_block.end());
-	output_block.insert(output_block.begin()+state_block.size(), input_block.begin(), input_block.end()-state_block.size());
+	//output_block.insert(output_block.end(), state_block.begin(), state_block.end());
+	//output_block.insert(output_block.begin()+state_block.size(), input_block.begin(), input_block.end()-state_block.size());
 
-	int stateSize = state_block.size();
-	state_block.clear();
+	//int stateSize = state_block.size();
+	//state_block.clear();
 	// state_block.assign(input_block.end()-stateSize, input_block.end());
-	state_block.insert(state_block.end(), input_block.end()-stateSize, input_block.end());
+	//state_block.insert(state_block.end(), input_block.end()-stateSize, input_block.end());
 }
 
 void pointwiseMultiply(const std::vector<float>&block1,const std::vector<float>&block2,std::vector<float>&output){
-	output.clear();
+	//output.clear();
 	// if(block1.size()!=block2.size()){
 	// 	std::cout<<"size mismatch in multiply mixer"<<std::endl;
 	// 	std::cout<<"blk1 size: "<<block1.size()<<std::endl;		
@@ -257,7 +265,7 @@ void pointwiseMultiply(const std::vector<float>&block1,const std::vector<float>&
 	}
 }
 void pointwiseAdd(const std::vector<float>&block1,const std::vector<float>&block2,std::vector<float>&output){
-	output.clear();
+	//output.clear();
 	output.resize(block1.size());
 	// if(block1.size()!=block2.size()){
 	// 	std::cout<<"size mismatch in add mixer"<<std::endl;
@@ -269,7 +277,7 @@ void pointwiseAdd(const std::vector<float>&block1,const std::vector<float>&block
 	}
 }
 void pointwiseSubtract(const std::vector<float>&block1,const std::vector<float>&block2,std::vector<float>&output){
-	output.clear();
+	//output.clear();
 	output.resize(block1.size());
 	// if(block1.size()!=block2.size()){
 	// 	std::cout<<"size mismatch in subtract mixer"<<std::endl;
@@ -282,7 +290,7 @@ void pointwiseSubtract(const std::vector<float>&block1,const std::vector<float>&
 }
 void interleave(const std::vector<float>&left,const std::vector<float>&right,std::vector<float>&output){
 	int size = left.size()+right.size();
-	output.clear();
+	//output.clear();
 	output.resize(size);
 	for(int i=0;i<size;i+=2){
 		output[i]=left[i/2];
