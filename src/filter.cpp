@@ -79,7 +79,7 @@ void blockConvolveFIR(std::vector<float> &y, const std::vector<float> &x, const 
 		}
 	}
 
-	state = std::vector<float>(x.end() - state.size(), x.end());
+	state.assign(x.end() - state.size(), x.end());
 }
 
 void fmDemodArctan(const std::vector<float> &I, const std::vector<float> &Q, float &prev_I, float &prev_Q, std::vector<float>& fm_demod) {
@@ -136,7 +136,7 @@ void downsampleBlockConvolveFIR(int factor, std::vector<float> &y, const std::ve
         }
     }
 
-    state = std::vector<float>(x.end() - state.size(), x.end());
+    state.assign(x.end() - state.size(), x.end());
 }
 
 void resampleBlockConvolveFIR(int upFactor, int downFactor, std::vector<float> &y, const std::vector<float> &x, const std::vector<float> &h, std::vector<float> &state)
@@ -166,7 +166,7 @@ void resampleBlockConvolveFIR(int upFactor, int downFactor, std::vector<float> &
         }
     }
 
-    state = std::vector<float>(x.end() - state.size(), x.end());
+    state.assign(x.end() - state.size(), x.end());
 
 	// debug_block++;
 
@@ -290,7 +290,7 @@ void pointwiseSubtract(const std::vector<float>&block1,const std::vector<float>&
 }
 void interleave(const std::vector<float>&left,const std::vector<float>&right,std::vector<float>&output){
 	int size = left.size()+right.size();
-	output.clear();
+	//output.clear();
 	output.resize(size);
 	for(int i=0;i<size;i+=2){
 		output[i]=left[i/2];
