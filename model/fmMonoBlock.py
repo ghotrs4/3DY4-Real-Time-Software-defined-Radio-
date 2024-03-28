@@ -16,6 +16,7 @@ import math
 # use fmDemodArctan and fmPlotPSD
 from fmSupportLib import fmDemodArctan, fmPlotPSD, plotSamples, manchesterEncoded
 from fmRRC import impulseResponseRootRaisedCosine
+from RDS_Application_layer import process_rds_data
 # for take-home add your functions
 
 # rf_Fs = 1.92e6;
@@ -71,6 +72,224 @@ in_fname = "../data/2400.raw"
 # in-lab (il_vs_th = 0) vs takehome (il_vs_th = 1)
 il_vs_th = 1
 
+# call this for first five blocks
+# input: symbol stream, last symbol from previous block of symbols, num errors for method 1, num errors for method 2
+# ouput: last symbol from this block of symbols, updated num errors for method 1, num errors for method 2
+def find_pattern(symbol_stream, symbol_state, errors1, errors2):
+	for i in range(1, len(symbol_stream), 2):
+		current1 = symbol_stream[i]
+		prev1 = symbol_stream[i-1]
+		current2 = symbol_stream[i-1]
+		prev2 = symbol_stream[i-2] if i != 1 else symbol_state
+
+		if (current1 == prev1):
+			errors1 += 1
+		if (current2 == prev2):
+			errors2 += 1
+
+	symbol_state = symbol_stream[-1]
+
+	return symbol_state, errors1, errors2 # if errors1 > errors2, use start = 0; else use start = 1
+
+# call this after first five blocks
+# input: symbol stream, last symbol from previous block of symbols, last bit from previous output bitstream, starting index depending on symbol matching method (0 or 1)
+# output: decoded bistream, last symbol from this block of symbols, last bit from this Manchester-decoded (not differentially-decoded) stream
+def decode(symbol_stream, symbol_state, bit_state, start):
+	bit_stream = []
+	output = []
+
+	# Manchester and differential decoding
+	for i in range(start, len(symbol_stream), 2):
+		current_symbol = symbol_stream[i]
+		prev_symbol = symbol_stream[i-1] if i != 0 else symbol_state
+
+		if (current_symbol == 0 and prev_symbol == 1):
+			bit_stream.append(1)
+			output.append(1 if 1 != bit_state else 0)
+		elif (current_symbol == 1 and prev_symbol == 0):
+			bit_stream.append(0)
+			output.append(1 if 0 != bit_state else 0)
+		else:
+			# what to do in this case?
+			bit_stream.append(0)
+			output.append(1 if 0 != bit_state else 0)
+			# print("error")
+		
+		bit_state = bit_stream[-1]
+
+	symbol_state = symbol_stream[-1]
+	
+	return output, symbol_state, bit_state
+
+# input: 16-bit bitstream
+# output: packet of 4 frames (each a 16-bit message stream + 10-bit parity checkword), message with parity but without offset
+def frame_sync_transmitter(b):
+	packet = EmptyObject()
+	p = [0] * 10
+	o_a = [0,0,1,1,1,1,1,1,0,0]
+	o_b = [0,1,1,0,0,1,1,0,0,0]
+	o_c = [0,1,0,1,1,0,1,0,0,0]
+	o_cp = [1,1,0,1,0,1,0,0,0,0]
+	o_d = [0,1,1,0,1,1,0,1,0,0]
+
+	p[0] = (b[1]+b[2]+b[3]+b[4]+b[5]+b[10]+b[11]+b[12]+b[13]+b[14])%2
+	p[1] = (b[2]+b[3]+b[4]+b[5]+b[6]+b[11]+b[12]+b[13]+b[14]+b[15])%2
+	p[2] = (b[1]+b[2]+b[6]+b[7]+b[10]+b[11]+b[15])%2
+	p[3] = (b[0]+b[1]+b[4]+b[5]+b[7]+b[8]+b[10]+b[13]+b[14])%2
+	p[4] = (b[0]+b[1]+b[2]+b[5]+b[6]+b[8]+b[9]+b[11]+b[14]+b[15])%2
+	p[5] = (b[0]+b[4]+b[5]+b[6]+b[7]+b[9]+b[11]+b[13]+b[14]+b[15])%2
+	p[6] = (b[2]+b[3]+b[4]+b[6]+b[7]+b[8]+b[11]+b[13]+b[15])%2
+	p[7] = (b[0]+b[1]+b[2]+b[7]+b[8]+b[9]+b[10]+b[11]+b[13])%2
+	p[8] = (b[0]+b[1]+b[2]+b[3]+b[8]+b[9]+b[10]+b[11]+b[12]+b[14])%2
+	p[9] = (b[0]+b[1]+b[2]+b[13]+b[4]+b[9]+b[10]+b[11]+b[12]+b[13]+b[15])%2
+
+	packet.a = b + xor(p, o_a)
+	packet.b = b + xor(p, o_b)
+	packet.c = b + xor(p, o_c)
+	packet.cp = b + xor(p, o_cp)
+	packet.d = b + xor(p, o_d)
+
+	return packet
+
+# input: decoded data, index for next element to be added, boolean indicating whether frames are synced, state from previous window
+# output: 26-bit window, index of next element to be added to window, stop flag
+# data: input symbol stream, window: output bitstream (length 26), index: index of newest element in window (0 initially), stop: boolean to track when to stop
+def get_window(data, index, synced, state):
+	index += 26 if synced == True else 1
+	# wrap around
+	if index >= len(data):
+		index -= len(data)
+
+	if index < 25:
+		window = state[index:] + data[:index+1]
+
+	else:
+		window = data[index-25:index+1]
+
+	state = data[len(data)-25:]
+
+	return window, index, state
+
+# input: one 26-bit frame
+def frame_sync_receiver(m, synced, offsetState, numSynced, position, lastPos):
+	# print("new packet received")
+
+	s = [0] * 10 # syndrome
+	msg = []
+		
+	#Defines variables after matrix multiplication
+	s[0] = (m[0] + m[10] + m[13] + m[14] + m[15] + m[16] + m[17] + m[19] + m[20] + m[23] + m[24] + m[25])%2
+	s[1] = (m[1] + m[11] + m[14] + m[15] + m[16] + m[17] + m[18] + m[20] + m[21] + m[24] + m[25])%2
+	s[2] = (m[2] + m[10] + m[12] + m[13] + m[14] + m[18] + m[20] + m[21] + m[22] + m[23] + m[24])%2
+	s[3] = (m[3] + m[10] + m[11] + m[16] + m[17] + m[20] + m[21] + m[22])%2
+	s[4] = (m[4] + m[11] + m[12] + m[17] + m[18] + m[21] + m[22] + m[23])%2
+	s[5] = (m[5] + m[10] + m[12] + m[14] + m[15] + m[16] + m[17] + m[18] + m[20] + m[22] + m[25])%2
+	s[6] = (m[6] + m[10] + m[11] + m[14] + m[18] + m[20] + m[21] + m[24] + m[25])%2
+	s[7] = (m[7] + m[10] + m[11] + m[12] + m[13] + m[14] + m[16] + m[17] + m[20] + m[21] + m[22] + m[23]+ m[24])%2
+	s[8] = (m[8] + m[11] + m[12] + m[13] + m[14] + m[15] + m[17] + m[18] + m[21] + m[22] + m[23] + m[24]+ m[25])%2
+	s[9] = (m[9] + m[12] + m[13] + m[14] + m[15] + m[16] + m[18] + m[19] + m[22] + m[23] + m[24] + m[25])%2
+
+	# print("generated syndrome ", s)
+
+	if s == [1,1,1,1,0,1,1,0,0,0]:
+		msg = m[0:16]
+		print("---------------Block type A found! Bit position ", position)
+		if offsetState == 'D' or (offsetState == '' and not synced): # in order
+			synced = True
+			numSynced += 1 if not synced else 0
+		elif synced: # out of order; resync
+			synced = False
+			numSynced = 0
+		
+		if position != lastPos + 26 and offsetState != '': # check for false positive
+			# false positive
+			print("---------------Likely false positive with A syndrome starting at position ", position)
+		
+		offsetState = 'A' if synced else ''
+		lastPos = position
+	
+	elif s == [1,1,1,1,0,1,0,1,0,0]:
+		msg = m[0:16]
+		print("---------------Block type B found! Bit position ", position)
+		if offsetState == 'A' or (offsetState == '' and not synced): # in order
+			synced = True
+			numSynced += 1 if not synced else 0
+		elif synced: # out of order; resync
+			synced = False
+			numSynced = 0
+		
+		if position != lastPos + 26 and offsetState != '': # check for false positive
+			# false positive
+			print("---------------Likely false positive with B syndrome starting at position ", position)
+		
+		offsetState = 'B' if synced else ''
+		lastPos = position
+
+	elif s == [1,0,0,1,0,1,1,1,0,0]:
+		msg = m[0:16]
+		print("---------------Block type C found! Bit position ", position)
+		if offsetState == 'B' or (offsetState == '' and not synced): # in order
+			synced = True
+			numSynced += 1 if not synced else 0
+		elif synced: # out of order; resync
+			synced = False
+			numSynced = 0
+		
+		if position != lastPos + 26 and offsetState != '': # check for false positive
+			# false positive
+			print("---------------Likely false positive with C syndrome starting at position ", position)
+		
+		offsetState = 'C' if synced else ''
+		lastPos = position
+
+	elif s == [1,1,1,1,0,0,1,1,0,0]:
+		msg = m[0:16]
+		print("---------------Block type Cp found! Bit position ", position)
+		if offsetState == 'B' or (offsetState == '' and not synced): # in order
+			synced = True
+			numSynced += 1 if not synced else 0
+		elif synced: # out of order; resync
+			synced = False
+			numSynced = 0
+		
+		if position != lastPos + 26 and offsetState != '': # check for false positive
+			# false positive
+			print("---------------Likely false positive with Cp syndrome starting at position ", position)
+		
+		offsetState = 'Cp' if synced else ''
+		lastPos = position
+
+	elif s == [1,0,0,1,0,1,1,0,0,0]:
+		msg = m[0:16]
+		print("---------------Block type D found! Bit position ", position)
+		if offsetState == 'C' or offsetState == 'Cp' or (offsetState == '' and not synced): # in order
+			synced = True
+			numSynced += 1 if not synced else 0
+		elif synced: # out of order; resync
+			synced = False
+			numSynced = 0
+		
+		if position != lastPos + 26 and offsetState != '': # check for false positive
+			# false positive
+			print("---------------Likely false positive with D syndrome starting at position ", position)
+		
+		offsetState = 'D' if synced else ''
+		lastPos = position
+		
+	position += 26 if synced else 1
+	
+	if numSynced > 3 and not synced:
+		synced = True
+		
+	return synced, msg, offsetState, numSynced, position, lastPos
+
+# assumes a and b are arrays of equal length
+def xor(a, b):
+	result = [0] * len(a)
+	for i in range(len(a)):
+		result[i] = 1 if (a[i] and not b[i]) or (not a[i] and b[i]) else 0
+	return result
+
 def fmDemodArctanCustom(I, Q, prev_I=0, prev_Q=0):
 	# empty vector to store the demodulated samples
 	fm_demod = np.empty(len(I))
@@ -118,8 +337,10 @@ def resampler(upFactor, downFactor, xb, h, i_state):
 				yb[int(n/downFactor)]+=h[k]*i_state[len(i_state) + int((n-k)/upFactor)]
 	state=xb[len(xb)-(int(len(h)/upFactor)-1):len(xb)]
 	return yb,state
+
 class EmptyObject:
     pass
+
 def fmPll(pllIn, freq, Fs, ncoScale = 1.0, phaseAdjust = 0.0, normBandwidth = 0.01, state = EmptyObject()):
 	Cp = 2.666
 	Ci = 3.555
@@ -156,26 +377,31 @@ def fmPll(pllIn, freq, Fs, ncoScale = 1.0, phaseAdjust = 0.0, normBandwidth = 0.
 	state.q_ncoState = q_ncoOut[len(pllIn)]
 
 	return ncoOut[:-1], q_ncoOut[:-1]
+
 def delayBlock(input_block, state_block):
 	output_block = np.concatenate((state_block, input_block[:-len(state_block)]))
 	state_block = input_block[-len(state_block):]
 
 	return output_block, state_block
+
 def pointwiseMultiply(input1, input2, gain):
 	output = np.zeros(len(input1))
 	for i in range(len(input1)):
 		output[i] = input1[i]*input2[i]*gain
 	return output
+
 def pointwiseAdd(input1, input2):
 	output = np.zeros(len(input1))
 	for i in range(len(input1)):
 		output[i] = input1[i]+input2[i]
 	return output
+
 def pointwiseSubtract(input1, input2):
 	output = np.zeros(len(input1))
 	for i in range(len(input1)):
 		output[i] = input1[i]-input2[i]
 	return output
+
 def squaringNonlinearity(x):
     y = []  # Initialize an empty list to store the squared values
     for i in range(len(x)):
@@ -218,7 +444,7 @@ if __name__ == "__main__":
 	pll_freq_RDS = 114e3
 	ncoScale_RDS = 0.5
 	phaseAdjust_RDS = 0
-	normBandwidth_RDS = 0.003
+	normBandwidth_RDS = 0.001
 
 	#init RDS PLL states
 	pllStateRDS = EmptyObject()
@@ -285,12 +511,12 @@ if __name__ == "__main__":
 	RDS_lowpass_state = np.zeros(RDS_taps-1)
 
 
-	RDS_lpf_coeff = signal.firwin(RDS_taps*RDS_upsample, RDS_Fc/(audio_Fs*RDS_upsample/2))
+	RDS_lpf_coeff = signal.firwin(RDS_taps, RDS_Fc/(audio_Fs*RDS_upsample/2))
 	RDS_lpf_coeff=RDS_lpf_coeff*RDS_upsample
 
 	# #RRC Variables
 	RRC_Final = np.zeros(1)
-	RRC_state = np.zeros(RDS_taps-1)
+	RRC_state = np.zeros(int(RDS_taps/RDS_upsample)-1)
 
 	#quadrature debug
 	q_RDS_mixed = np.zeros(1)
@@ -299,13 +525,18 @@ if __name__ == "__main__":
 
 	# #RRC Variables
 	q_RRC_Final = np.zeros(1)
-	q_RRC_state = np.zeros(RDS_taps-1)
+	q_RRC_state = np.zeros(int(RDS_taps/RDS_upsample)-1)
 	#RDS
 	RDS_encoded = np.empty(1)
 	QRDS_encoded = np.empty(1)
 	m_index = 0.0
 	m_found = False
 	RDS_symbols = np.array([])
+
+	#RDS application variables
+	PTYcode = ''
+	PIcode = ''
+	count = 0
 
 	# coefficients for the filter to extract mono audio
 	if il_vs_th == 0:
@@ -351,6 +582,29 @@ if __name__ == "__main__":
 	prev_I = 0
 	prev_Q = 0
 	state = np.zeros(audio_taps-1)
+
+	window_index = 24
+	synced = False
+	window_state = []
+
+	symbol_state = 0
+	errors1 = 0
+	errors2 = 0
+
+	decode_start = 0
+
+	bit_state = 0
+
+	offsetState = ''
+	numSynced = 0
+	bit_pos = 0
+	last_pos = 0
+
+	msgs = EmptyObject()
+	msgs.a = []
+	msgs.b = []
+	msgs.c = []
+	msgs.d = []
 
 	# if the number of samples in the last block is less than the block size
 	# it is fine to ignore the last few samples from the raw IQ file
@@ -433,7 +687,7 @@ if __name__ == "__main__":
 		RDS_lowpass, RDS_lowpass_state = resampler(RDS_upsample, RDS_decim, RDS_mixed, RDS_lpf_coeff, RDS_lowpass_state)
 
 		# #Generates root raised cosine impulse response
-		RRC_Impulse = impulseResponseRootRaisedCosine(RDS_Fs, RDS_taps)
+		RRC_Impulse = impulseResponseRootRaisedCosine(RDS_Fs, int(RDS_taps/RDS_upsample))
 		RRC_Final, RRC_state = convolve(RDS_lowpass, RRC_Impulse, RRC_state)
 
 		#quadrature debug path
@@ -444,11 +698,41 @@ if __name__ == "__main__":
 
 		RDS_encoded, QRDS_encoded, RDS_symbols, m_index, m_found = manchesterEncoded(RRC_Final, q_RRC_Final, sps, m_index, m_found)
 
+		if (block_count >= 5):
+
+			if (block_count < 10): # find pattern
+					symbol_state, errors1, errors2 = find_pattern(RDS_symbols, symbol_state, errors1, errors2)
+			else: # decode
+				decode_start = 0 if errors1 > errors2 else 1
+				print("start at index ", decode_start, "for decoding")
+				decoded_stream, symbol_state, bit_state = decode(RDS_symbols, symbol_state, bit_state, decode_start)
+
+				widx = 0
+				while ((synced and widx < len(decoded_stream)-26) or (not synced and widx < len(decoded_stream)-1)):
+					window_data, window_index, window_state = get_window(decoded_stream, window_index, synced, window_state)
+					widx = window_index
+
+					synced, msg, offsetState, numSynced, bit_pos, last_pos = frame_sync_receiver(window_data, synced, offsetState, numSynced, bit_pos, last_pos)
+
+					if synced:
+						msgs.a = msg if offsetState == 'A' else msgs.a
+						msgs.b = msg if offsetState == 'B' else msgs.b
+						msgs.c = msg if offsetState == 'C' else msgs.c
+						msgs.d = msg if offsetState == 'D' else msgs.d
+					else:
+						msgs.a = []
+						msgs.b = []
+						msgs.c = []
+						msgs.d = []
+					
+					if msgs.a != [] and msgs.b != [] and msgs.c != [] and msgs.d != []:
+						# application layer
+						PTYcode, PIcode, count = process_rds_data(msgs, PTYcode, PIcode, count)
 
 		# to save runtime select the range of blocks to log data
 		# this includes both saving binary files as well plotting PSD
-		# below we assume we want to plot for graphs for blocks 10 and 11
-		if block_count >= 4 and block_count < 5:
+		#below we assume we want to plot for graphs for blocks 10 and 11
+		if block_count >= 7 and block_count < 8:
 
 			# plot PSD of selected block after FM demodulation
 			ax0.clear()
@@ -484,7 +768,7 @@ if __name__ == "__main__":
 			ax3.scatter(x_vec, RDS_symbols, s=10)
 			# save figure to file
 			fig.savefig("../data/fmMonoBlock" + str(block_count) + ".png")
-			exit()
+			#exit()
 
 		block_count += 1
 

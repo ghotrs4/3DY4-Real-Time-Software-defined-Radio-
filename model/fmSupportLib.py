@@ -190,6 +190,7 @@ def fmPlotPSD(ax, samples, Fs, height, title):
 	ax.set_xlabel('Frequency (kHz)')
 	ax.set_ylabel('PSD (db/Hz)')
 	ax.set_title(title)
+
 def plotSamples(ax, x, height, decim, Title):
     samples = np.empty(int(len(x)))
     print("total samples in block: " +str(len(x)))
@@ -204,33 +205,16 @@ def plotSamples(ax, x, height, decim, Title):
     ax.set_ylim([y_min, y_max])
 
     ax.set(xlabel="Samples", ylabel="Amplitude", title=Title)
-def encode(signal, sps, K, found):#K(default 0), found(default false) are state vars
-    idx=K
-    output = np.empty(int(len(signal)/sps))
-    if(found == False):
-        max = 0
-        idx = 0
-        for i in range(sps*2):
-            if(abs(signal[i])>max):
-                max = signal[i]
-                idx = i
-                found = True
 
-    for k in range (idx, len(signal), sps):
-        if(signal[k]>0):
-            output[int(k/sps)]=signal[k]
-        else:
-            output[int(k/sps)]=signal[k]
-    k = k % sps
-    return output, k, found
 def manchesterEncoded(signal, Qsignal, sps, K, found):
-	print("incoming idx is: ", K)
+	#print("incoming idx is: ", K)
 	idx = K
-	threshold = 0.1
+	threshold = 0.05
+	truncate = False
 
 	output = np.empty(int(len(signal)/sps))
 	Qoutput = np.empty(int(len(signal)/sps))
-	encodedSymbols = np.empty(int(len(signal)/sps))
+	encodedSymbols = np.empty(int(len(signal)/sps), dtype=np.int16)
 	if(found == False):
 		max = 0
 		idx = 0
@@ -239,16 +223,27 @@ def manchesterEncoded(signal, Qsignal, sps, K, found):
 				max = signal[i]
 				idx = i
 				found = True
+				truncate = True
+
 	k=0
 	for k in range (idx, len(signal), sps):
 		output[int(k/sps)] = signal[k]
 		Qoutput[int(k/sps)] = Qsignal[k]
 		encodedSymbols[int(k/sps)] = 0 if (signal[k]<0) else 1
+
 	#end of block sanity check, resync if necessary
 	if(abs(output[int(k/sps)])<threshold and abs(output[int((k-1)/sps)]<threshold)):
-		print("resynced")
+		print("resynced manchester encode")
 		found=False
 	k = k % sps
+
+	if(truncate):#resize array if resync is performed
+		output = output[1:]
+		Qoutput = Qoutput[1:]
+		encodedSymbols = encodedSymbols[1:]
+		truncate = False
+
+	# print(encodedSymbols) #debug hook
 	return output, Qoutput, encodedSymbols, k, found
 
 
