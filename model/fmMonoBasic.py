@@ -74,10 +74,10 @@ from fmSupportLib import fmDemodArctan, fmPlotPSD
 # the radio-frequency (RF) sampling rate
 # this sampling rate is either configured on RF hardware
 # or documented when a raw file with IQ samples is provided
-rf_Fs = 1.92e6
+rf_Fs = 2.4e6
 
 # the cutoff frequency to extract the FM channel from raw IQ data
-rf_Fc = 64e3
+rf_Fc = 100e3
 
 # the number of taps for the low-pass filter to extract the FM channel
 # this default value for the width of the impulse response should be changed
@@ -88,27 +88,202 @@ rf_taps = 101
 # the decimation rate when reducing the front end sampling rate (i.e., RF)
 # to a smaller samping rate at the intermediate frequency (IF) where
 # the demodulated data will be split into the mono/stereo/radio data channels
-rf_decim = 15
+rf_decim = 10
 
 # audio sampling rate (we assume audio will be at 48 KSamples/sec)
-audio_Fs = 32e3
+audio_Fs = 48e3
 # should be the same as rf_Fs / rf_decim / audio_decim
 
 # complete your own settings for the mono channel
 # (cutoff freq, audio taps, decimation rate, ...)
 audio_Fc = 16e3 # change as needed (see spec in lab document)
-audio_decim = 4 # change as needed (see spec in lab document)
+audio_decim = 5 # change as needed (see spec in lab document)
 audio_taps = 101
 
 # flag that keeps track if your code is running for
 # in-lab (il_vs_th = 0) vs takehome (il_vs_th = 1)
-il_vs_th = 0
+il_vs_th = 1
+
+def fmPll(pllIn, freq, Fs, ncoScale = 1.0, phaseAdjust = 0.0, normBandwidth = 0.01):
+
+
+
+	"""
+
+	pllIn 	 		array of floats
+
+					input signal to the PLL (assume known frequency)
+
+
+
+	freq 			float
+
+					reference frequency to which the PLL locks
+
+
+
+	Fs  			float
+
+					sampling rate for the input/output signals
+
+
+
+	ncoScale		float
+
+					frequency scale factor for the NCO output
+
+
+
+	phaseAdjust		float
+
+					phase adjust to be added to the NCO output only
+
+
+
+	normBandwidth	float
+
+					normalized bandwidth for the loop filter
+
+					(relative to the sampling rate)
+
+
+
+	state 			to be added
+
+
+
+	"""
+
+
+
+	# scale factors for proportional/integrator terms
+
+	# these scale factors were derived assuming the following:
+
+	# damping factor of 0.707 (1 over square root of 2)
+
+	# there is no oscillator gain and no phase detector gain
+
+	Cp = 2.666
+
+	Ci = 3.555
+
+
+
+	# gain for the proportional term
+
+	Kp = (normBandwidth)*Cp
+
+	# gain for the integrator term
+
+	Ki = (normBandwidth*normBandwidth)*Ci
+
+
+
+	# output array for the NCO
+
+	ncoOut = np.empty(len(pllIn)+1)
+
+
+
+	# initialize internal state
+
+	integrator = 0.0
+
+	phaseEst = 0.0
+
+	feedbackI = 1.0
+
+	feedbackQ = 0.0
+
+	ncoOut[0] = 1.0
+
+	trigOffset = 0
+
+	# note: state saving will be needed for block processing
+
+
+
+	for k in range(len(pllIn)):
+
+
+
+		# phase detector
+
+		errorI = pllIn[k] * (+feedbackI)  # complex conjugate of the
+
+		errorQ = pllIn[k] * (-feedbackQ)  # feedback complex exponential
+
+
+
+		# four-quadrant arctangent discriminator for phase error detection
+
+		errorD = math.atan2(errorQ, errorI)
+
+
+
+		# loop filter
+
+		integrator = integrator + Ki*errorD
+
+
+
+		# update phase estimate
+
+		phaseEst = phaseEst + Kp*errorD + integrator
+
+
+
+		# internal oscillator
+
+		trigOffset += 1
+
+		trigArg = 2*math.pi*(freq/Fs)*(trigOffset) + phaseEst
+
+		feedbackI = math.cos(trigArg)
+
+		feedbackQ = math.sin(trigArg)
+
+		ncoOut[k+1] = math.cos(trigArg*ncoScale + phaseAdjust)
+
+
+
+	# for stereo only the in-phase NCO component should be returned
+
+	# for block processing you should also return the state
+
+	return ncoOut
+
+def delayBlock(input_block, state_block):
+	output_block = np.concatenate((state_block, input_block[:-len(state_block)]))
+
+	return output_block
+
+def convolve(xb, h):
+	yb = np.zeros(len(xb))
+	for n in range(len(yb)):
+		for k in range(len(h)):
+			if(n-k>=0):
+				yb[n]+=h[k]*xb[n-k]
+	return yb
+
+def pointwiseAdd(input1, input2):
+	output = np.zeros(len(input1))
+	for i in range(len(input1)):
+		output[i] = input1[i]+input2[i]
+	return output
+
+def pointwiseSubtract(input1, input2):
+	output = np.zeros(len(input1))
+	for i in range(len(input1)):
+		output[i] = input1[i]-input2[i]
+	return output
 
 if __name__ == "__main__":
 
 	# read the raw IQ data from the recorded file
 	# IQ data is assumed to be in 8-bits unsigned (and interleaved)
-	in_fname = "../data/nes192M.raw"
+	in_fname = "../data/stereo_l0_r9.raw"
 	raw_data = np.fromfile(in_fname, dtype='uint8')
 	print("Read raw RF data from \"" + in_fname + "\" in unsigned 8-bit format")
 	# IQ data is normalized between -1 and +1 in 32-bit float format
@@ -149,7 +324,7 @@ if __name__ == "__main__":
 		# to be updated by you for the takehome exercise
 		# with your own code for impulse response generation
 		h = np.zeros(audio_taps)
-		Norm_cutoff=audio_Fc/(audio_Fs/2)
+		Norm_cutoff=audio_Fc/((rf_Fs/rf_decim)/2)
 		for i in range(audio_taps):
 			if (i == (audio_taps-1)/2):
 				h[i] = Norm_cutoff
@@ -158,20 +333,23 @@ if __name__ == "__main__":
 				h[i] = Norm_cutoff * np.sin(param)/param
 			h[i] = h[i]*((np.sin(i*np.pi/audio_taps))**2)
 		audio_coeff = h
+	
+	mono_delay_state = np.zeros(int((rf_taps-1)/2))
+	mono_delay = delayBlock(fm_demod, mono_delay_state)
 
 	# extract the mono audio data through filtering
 	if il_vs_th == 0:
 		# to be updated by you during the in-lab session based on lfilter
 		# same principle as for i_filt or q_filt (but different arguments)
-		audio_filt = signal.lfilter(audio_coeff, 1.0, fm_demod)
+		audio_filt = signal.lfilter(audio_coeff, 1.0, mono_delay)
 	else:
 		# to be updated by you for the takehome exercise
 		# with your own code for single pass convolution
-		yb = np.zeros(len(fm_demod))
+		yb = np.zeros(len(mono_delay))
 		for n in range(len(yb)):
 			for k in range(len(h)):
 				if(n-k>=0):
-					yb[n]+=h[k]*fm_demod[n-k]
+					yb[n]+=h[k]*mono_delay[n-k]
 		audio_filt = yb
 
 	# you should uncomment the plots below once you have processed the data
@@ -185,13 +363,37 @@ if __name__ == "__main__":
 	# PSD after decimating mono audio
 	fmPlotPSD(ax2, audio_data, audio_Fs/1e3, subfig_height[2], 'Downsampled Mono Audio')
 
+	lowcut = 22e3/((rf_Fs/rf_decim)/2)
+	highcut = 54e3/((rf_Fs/rf_decim)/2)
+	stereo_coeff = signal.firwin(rf_taps, [lowcut, highcut], window=('hann'), pass_zero=False)
+
+	lowcut = 18.5e3/((rf_Fs/rf_decim)/2)
+	highcut = 19.5e3/((rf_Fs/rf_decim)/2)
+	pilot_coeff = signal.firwin(rf_taps, [lowcut, highcut], window=('hann'), pass_zero=False)
+
+	pilot_filtered = convolve(fm_demod, pilot_coeff)
+	stereo_filtered = convolve(fm_demod, stereo_coeff)
+
+	ncoOut = fmPll(pilot_filtered, 19e3, (rf_Fs/rf_decim), 2.0)
+	stereo_mixed = ncoOut[:-1]*stereo_filtered
+
+	stereo_mixed = stereo_mixed * 2
+
+	stereo_lowpass = convolve(stereo_mixed, audio_coeff)
+	stereo_lowpass = stereo_lowpass[::audio_decim]
+
+	stereo_left = pointwiseAdd(audio_data, stereo_lowpass)
+	stereo_right = pointwiseSubtract(audio_data, stereo_lowpass)
+
 	# save PSD plots
 	fig.savefig("../data/fmMonoBasic.png")
 	plt.show()
 
 	# write audio data to file (assumes audio_data samples are -1 to +1)
 	out_fname = "../data/fmMonoBasic.wav"
-	wavfile.write(out_fname, int(audio_Fs), np.int16((audio_data/2)*32767))
+	stereo_data = np.vstack((stereo_left, stereo_right)).T
+	wavfile.write(out_fname, int(audio_Fs), np.int16((stereo_data/2)*32767))
+	# wavfile.write(out_fname, int(audio_Fs), np.int16((audio_data/2)*32767))
 	# during FM transmission audio samples in the mono channel will contain
 	# the sum of the left and right audio channels; hence, we first
 	# divide by two the audio sample value and then we rescale to fit

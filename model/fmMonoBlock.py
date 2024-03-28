@@ -65,11 +65,238 @@ RDS_Fc = 3e3
 sps = 16
 RDS_Fs = sps*2375
 
-in_fname = "../data/2400.raw"
+in_fname = "../data/samples3.raw"
 
 # flag that keeps track if your code is running for
 # in-lab (il_vs_th = 0) vs takehome (il_vs_th = 1)
 il_vs_th = 1
+
+# call this for first five blocks
+# input: symbol stream, last symbol from previous block of symbols, num errors for method 1, num errors for method 2
+# ouput: last symbol from this block of symbols, updated num errors for method 1, num errors for method 2
+def find_pattern(symbol_stream, symbol_state, errors1, errors2):
+	for i in range(1, len(symbol_stream), 2):
+		current1 = symbol_stream[i]
+		prev1 = symbol_stream[i-1]
+		current2 = symbol_stream[i-1]
+		prev2 = symbol_stream[i-2] if i != 1 else symbol_state
+
+		if (current1 == prev1):
+			errors1 += 1
+		if (current2 == prev2):
+			errors2 += 1
+
+	symbol_state = symbol_stream[-1]
+
+	return symbol_state, errors1, errors2 # if errors1 > errors2, use start = 0; else use start = 1
+
+# call this after first five blocks
+# input: symbol stream, last symbol from previous block of symbols, last bit from previous output bitstream, starting index depending on symbol matching method (0 or 1)
+# output: decoded bistream, last symbol from this block of symbols, last bit from this Manchester-decoded (not differentially-decoded) stream
+def decode(symbol_stream, symbol_state, bit_state, start):
+	bit_stream = []
+	output = []
+
+	# Manchester and differential decoding
+	for i in range(start, len(symbol_stream), 2):
+		current_symbol = symbol_stream[i]
+		prev_symbol = symbol_stream[i-1] if i != 0 else symbol_state
+
+		if (current_symbol == 0 and prev_symbol == 1):
+			bit_stream.append(1)
+			output.append(1 if 1 != bit_state else 0)
+		elif (current_symbol == 1 and prev_symbol == 0):
+			bit_stream.append(0)
+			output.append(1 if 0 != bit_state else 0)
+		else:
+			# what to do in this case?
+			bit_stream.append(0)
+			print("error")
+		
+		bit_state = bit_stream[-1]
+
+	symbol_state = symbol_stream[-1]
+	
+	return output, symbol_state, bit_state
+
+# input: decoded data, index for next element to be added, boolean indicating whether frames are synced, state from previous window
+# output: 16-bit window, index of next element to be added to window, stop flag
+# data: input symbol stream, window: output bitstream (length 16), index: index of newest element in window (0 initially), stop: boolean to track when to stop
+def get_window(data, index, synced, state):
+	index += 16 if synced == True else 1
+	# wrap around
+	if index >= len(data):
+		index -= len(data)
+
+	if index < 15:
+		window = state[index:] + data[:index+1]
+
+	else:
+		window = data[index-15:index+1]
+
+	state = data[len(data)-15:]
+
+	return window, index, state
+
+# input: 16-bit bitstream
+# output: packet of 4 frames (each a 16-bit message stream + 10-bit parity checkword), message with parity but without offset
+def frame_sync_transmitter(b):
+	packet = EmptyObject()
+	p = [0] * 10
+	o_a = [0,0,1,1,1,1,1,1,0,0]
+	o_b = [0,1,1,0,0,1,1,0,0,0]
+	o_c = [0,1,0,1,1,0,1,0,0,0]
+	o_cp = [1,1,0,1,0,1,0,0,0,0]
+	o_d = [0,1,1,0,1,1,0,1,0,0]
+
+	p[0] = (b[1]+b[2]+b[3]+b[4]+b[5]+b[10]+b[11]+b[12]+b[13]+b[14])%2
+	p[1] = (b[2]+b[3]+b[4]+b[5]+b[6]+b[11]+b[12]+b[13]+b[14]+b[15])%2
+	p[2] = (b[1]+b[2]+b[6]+b[7]+b[10]+b[11]+b[15])%2
+	p[3] = (b[0]+b[1]+b[4]+b[5]+b[7]+b[8]+b[10]+b[13]+b[14])%2
+	p[4] = (b[0]+b[1]+b[2]+b[5]+b[6]+b[8]+b[9]+b[11]+b[14]+b[15])%2
+	p[5] = (b[0]+b[4]+b[5]+b[6]+b[7]+b[9]+b[11]+b[13]+b[14]+b[15])%2
+	p[6] = (b[2]+b[3]+b[4]+b[6]+b[7]+b[8]+b[11]+b[13]+b[15])%2
+	p[7] = (b[0]+b[1]+b[2]+b[7]+b[8]+b[9]+b[10]+b[11]+b[13])%2
+	p[8] = (b[0]+b[1]+b[2]+b[3]+b[8]+b[9]+b[10]+b[11]+b[12]+b[14])%2
+	p[9] = (b[0]+b[1]+b[2]+b[13]+b[4]+b[9]+b[10]+b[11]+b[12]+b[13]+b[15])%2
+
+	packet.a = b + xor(p, o_a)
+	packet.b = b + xor(p, o_b)
+	packet.c = b + xor(p, o_c)
+	packet.cp = b + xor(p, o_cp)
+	packet.d = b + xor(p, o_d)
+
+	return packet
+
+# input: packet of four 26-bit frames
+def frame_sync_receiver(packet, synced, offsetState, numErrors, position):
+	print("new packet received")
+	msgs = EmptyObject()
+	msgs.a = []
+	msgs.b = []
+	msgs.c = []
+	msgs.d = []
+
+	s = [0] * 10 # syndrome
+	m = [] # 26 bit message + offset
+
+	for i in range(1, 6):
+		if i == 1:
+			m = packet.a
+		elif i == 2:
+			m = packet.b
+		elif i == 3:
+			m = packet.c
+		elif i == 4:
+			m = packet.cp
+		elif i == 5:
+			m = packet.d
+		
+		#Defines variables after matrix multiplication
+		s[0] = (m[0] + m[10] + m[13] + m[14] + m[15] + m[16] + m[17] + m[19] + m[20] + m[23] + m[24] + m[25])%2
+		s[1] = (m[1] + m[11] + m[14] + m[15] + m[16] + m[17] + m[18] + m[20] + m[21] + m[24] + m[25])%2
+		s[2] = (m[2] + m[10] + m[12] + m[13] + m[14] + m[18] + m[20] + m[21] + m[22] + m[23] + m[24])%2
+		s[3] = (m[3] + m[10] + m[11] + m[16] + m[17] + m[20] + m[21] + m[22])%2
+		s[4] = (m[4] + m[11] + m[12] + m[17] + m[18] + m[21] + m[22] + m[23])%2
+		s[5] = (m[5] + m[10] + m[12] + m[14] + m[15] + m[16] + m[17] + m[18] + m[20] + m[22] + m[25])%2
+		s[6] = (m[6] + m[10] + m[11] + m[14] + m[18] + m[20] + m[21] + m[24] + m[25])%2
+		s[7] = (m[7] + m[10] + m[11] + m[12] + m[13] + m[14] + m[16] + m[17] + m[20] + m[21] + m[22] + m[23]+ m[24])%2
+		s[8] = (m[8] + m[11] + m[12] + m[13] + m[14] + m[15] + m[17] + m[18] + m[21] + m[22] + m[23] + m[24]+ m[25])%2
+		s[9] = (m[9] + m[12] + m[13] + m[14] + m[15] + m[16] + m[18] + m[19] + m[22] + m[23] + m[24] + m[25])%2
+
+		#Checking for offset A		
+		if i == 1:
+			print("generated type A syndrome: ", s)
+			if s == [1,1,1,1,0,1,1,0,0,0]:
+				synced = True
+				msgs.a = m[0:16]
+				print("---------------Block type A found! Bit position ", position)
+				if offsetState != 'D' and offsetState != '':
+					# false positive
+					print("---------------Likely false positive with A syndrome starting at position ", position)
+					numErrors += 1
+			else:
+				numErrors += 1
+			offsetState = 'A' if synced else ''
+		
+		#Checking for offset B
+		elif i == 2:
+			print("generated type B syndrome: ", s)
+			if s == [1,1,1,1,0,1,0,1,0,0]:
+				synced = True
+				msgs.b = m[0:16]
+				print("---------------Block type B found! Bit position ", position)
+				if offsetState != 'A' and offsetState != '':
+					# false positive
+					print("---------------Likely false positive with B syndrome starting at position ", position)
+					numErrors += 1
+			else:
+				numErrors += 1
+			offsetState = 'B' if synced else ''
+		
+		#Checking for offset C
+		elif i == 3:
+			print("generated type C syndrome: ", s)
+			if s == [1,0,0,1,0,1,1,1,0,0]:
+				synced = True
+				msgs.c = m[0:16]
+				print("---------------Block type C found! Bit position ", position)
+				if offsetState != 'B' and offsetState != '':
+					# false positive
+					print("---------------Likely false positive with C syndrome starting at position ", position)
+					numErrors += 1
+				i += 1 # skip Cp check if C found
+			else:
+				numErrors += 1
+			offsetState = 'C' if synced else ''
+		
+		#Checking for offset C'
+		elif i == 4:
+			print("generated type Cp syndrome: ", s)
+			if s == [1,1,1,1,0,0,1,1,0,0]:
+				synced = True
+				msgs.c = m[0:16]
+				print("---------------Block type Cp found! Bit position ", position)
+				if offsetState != 'B' and offsetState != '':
+					# false positive
+					print("---------------Likely false positive with Cp syndrome starting at position ", position)
+					numErrors += 1
+			else:
+				numErrors += 1
+			offsetState = 'Cp' if synced else ''
+			position -= 26
+
+		#Checking for offset D
+		elif i == 5:
+			print("generated type D syndrome: ", s)
+			if s == [1,0,0,1,0,1,1,0,0,0]:
+				synced = True
+				msgs.d = m[0:16]
+				print("---------------Block type D found! Bit position ", position)
+				if offsetState != 'C' and offsetState != 'Cp' and offsetState != '':
+					# false positive
+					print("---------------Likely false positive with D syndrome starting at position ", position)
+					numErrors += 1
+			else:
+				numErrors += 1
+			offsetState = 'D' if synced else ''
+		
+		position += 26
+	
+	if numErrors > 10 or not synced:
+		synced = False
+		numErrors = 0
+		offsetState = ''
+		print("!!!SYNCING!!!")
+		
+	return synced, msgs, offsetState, numErrors, position
+
+# assumes a and b are arrays of equal length
+def xor(a, b):
+	result = [0] * len(a)
+	for i in range(len(a)):
+		result[i] = 1 if (a[i] and not b[i]) or (not a[i] and b[i]) else 0
+	return result
 
 def fmDemodArctanCustom(I, Q, prev_I=0, prev_Q=0):
 	# empty vector to store the demodulated samples
@@ -352,6 +579,22 @@ if __name__ == "__main__":
 	prev_Q = 0
 	state = np.zeros(audio_taps-1)
 
+	window_index = 30
+	synced = False
+	window_state = []
+
+	symbol_state = 0
+	errors1 = 0
+	errors2 = 0
+
+	decode_start = 0
+
+	bit_state = 0
+
+	offsetState = ''
+	numErrors = 0
+	bit_pos = 0
+
 	# if the number of samples in the last block is less than the block size
 	# it is fine to ignore the last few samples from the raw IQ file
 	while (block_count+1)*block_size < len(iq_data):
@@ -444,47 +687,62 @@ if __name__ == "__main__":
 
 		RDS_encoded, QRDS_encoded, RDS_symbols, m_index, m_found = manchesterEncoded(RRC_Final, q_RRC_Final, sps, m_index, m_found)
 
+		if (block_count < 5): # find pattern
+				symbol_state, errors1, errors2 = find_pattern(RDS_symbols, symbol_state, errors1, errors2)
+		else: # decode
+			decode_start = 0 if errors1 > errors2 else 1
+			decoded_stream, symbol_state, bit_state = decode(RDS_symbols, symbol_state, bit_state, decode_start)
+
+			widx = 0
+			while ((synced and widx < int(len(RDS_symbols)/2)-16) or (not synced and widx < int(len(RDS_symbols)/2))):
+				window_data, window_index, window_state = get_window(decoded_stream, window_index, synced, window_state)
+				widx = window_index
+
+				packet = frame_sync_transmitter(window_data)
+				synced, msgs, offsetState, numErrors, bit_pos = frame_sync_receiver(packet, synced, offsetState, numErrors, bit_pos)
+				
+				print("msgs.a: ", msgs.a)
 
 		# to save runtime select the range of blocks to log data
 		# this includes both saving binary files as well plotting PSD
 		# below we assume we want to plot for graphs for blocks 10 and 11
-		if block_count >= 4 and block_count < 5:
+		# if block_count >= 40 and block_count < 41:
 
-			# plot PSD of selected block after FM demodulation
-			ax0.clear()
-			#fmPlotPSD(ax0, audio_block, (final_Fs)/1e3, subfig_height[0], \
-			#		'PSD audio_block (block ' + str(block_count) + ')')
-			plotSamples(ax0, RRC_Final, 2, 1, "RDS RRC In-phase")
-			# output binary file name (where samples are written from Python)
-			#fm_demod_fname = "../data/fm_demod_" + str(block_count) + ".bin"
-			# create binary file where each sample is a 32-bit float
-			#fm_demod.astype('float32').tofile(fm_demod_fname)
+		# 	# plot PSD of selected block after FM demodulation
+		# 	ax0.clear()
+		# 	#fmPlotPSD(ax0, audio_block, (final_Fs)/1e3, subfig_height[0], \
+		# 	#		'PSD audio_block (block ' + str(block_count) + ')')
+		# 	plotSamples(ax0, RRC_Final, 2, 1, "RDS RRC In-phase")
+		# 	# output binary file name (where samples are written from Python)
+		# 	#fm_demod_fname = "../data/fm_demod_" + str(block_count) + ".bin"
+		# 	# create binary file where each sample is a 32-bit float
+		# 	#fm_demod.astype('float32').tofile(fm_demod_fname)
 
-			# plot PSD of selected block after extracting mono audio
-			#audio_filt = signal.lfilter(audio_coeff, 1.0, fm_demod)
-			ax1.clear()
-			plotSamples(ax1, q_RRC_Final, 2, 1, "RDS RRC Quadrature")
-			#fmPlotPSD(ax1,stereo_lowpass, (final_Fs)/1e3, subfig_height[1], \
-			#		'PSD stereo_lowpass (block ' + str(block_count) + ')')
+		# 	# plot PSD of selected block after extracting mono audio
+		# 	#audio_filt = signal.lfilter(audio_coeff, 1.0, fm_demod)
+		# 	ax1.clear()
+		# 	plotSamples(ax1, q_RRC_Final, 2, 1, "RDS RRC Quadrature")
+		# 	#fmPlotPSD(ax1,stereo_lowpass, (final_Fs)/1e3, subfig_height[1], \
+		# 	#		'PSD stereo_lowpass (block ' + str(block_count) + ')')
 
-			# plot PSD of selected block after downsampling mono audio
-			#audio_block = audio_filt[::audio_decim]
-			ax2.clear()
-			print("Manchester encoded symbols: "+str(len(RDS_encoded)))
-			ax2.scatter(RDS_encoded, QRDS_encoded, s=10)
-			#fmPlotPSD(ax2, stereo_right_data, (final_Fs)/1e3, subfig_height[2], \
-					#'PSD stereo_right_data (block ' + str(block_count) + ')')
-			ax3.clear()
-			#fmPlotPSD(ax0, audio_block, (final_Fs)/1e3, subfig_height[0], \
-			#		'PSD audio_block (block ' + str(block_count) + ')')
-			x_vec = np.zeros(len(RDS_symbols))
-			for i in range(len(RDS_symbols)):
-				x_vec[i]=i
+		# 	# plot PSD of selected block after downsampling mono audio
+		# 	#audio_block = audio_filt[::audio_decim]
+		# 	ax2.clear()
+		# 	print("Manchester encoded symbols: "+str(len(RDS_encoded)))
+		# 	ax2.scatter(RDS_encoded, QRDS_encoded, s=10)
+		# 	#fmPlotPSD(ax2, stereo_right_data, (final_Fs)/1e3, subfig_height[2], \
+		# 			#'PSD stereo_right_data (block ' + str(block_count) + ')')
+		# 	ax3.clear()
+		# 	#fmPlotPSD(ax0, audio_block, (final_Fs)/1e3, subfig_height[0], \
+		# 	#		'PSD audio_block (block ' + str(block_count) + ')')
+		# 	x_vec = np.zeros(len(RDS_symbols))
+		# 	for i in range(len(RDS_symbols)):
+		# 		x_vec[i]=i
 				
-			ax3.scatter(x_vec, RDS_symbols, s=10)
-			# save figure to file
-			fig.savefig("../data/fmMonoBlock" + str(block_count) + ".png")
-			exit()
+		# 	ax3.scatter(x_vec, RDS_symbols, s=10)
+		# 	# save figure to file
+		# 	fig.savefig("../data/fmMonoBlock" + str(block_count) + ".png")
+			# exit()
 
 		block_count += 1
 
