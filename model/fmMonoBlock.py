@@ -16,6 +16,7 @@ import math
 # use fmDemodArctan and fmPlotPSD
 from fmSupportLib import fmDemodArctan, fmPlotPSD, plotSamples, manchesterEncoded
 from fmRRC import impulseResponseRootRaisedCosine
+from RDS_Application_layer import process_rds_data
 # for take-home add your functions
 
 # rf_Fs = 1.92e6;
@@ -700,7 +701,7 @@ if __name__ == "__main__":
 
 				packet = frame_sync_transmitter(window_data)
 				synced, msgs, offsetState, numErrors, bit_pos = frame_sync_receiver(packet, synced, offsetState, numErrors, bit_pos)
-				
+				process_rds_data(msgs) #RDS application layer
 				print("msgs.a: ", msgs.a)
 
 		# to save runtime select the range of blocks to log data
