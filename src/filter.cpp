@@ -178,7 +178,7 @@ void fmPLL(const std::vector<float> &PLLin, const float freq, const float Fs, co
 	float Kp = normBandwidth*Cp;
 	float Ki = normBandwidth*normBandwidth*Ci;
 
-	ncoOut.clear();
+	//ncoOut.clear();
 	ncoOut.resize(PLLin.size(), 0.0);
 
 	ncoOut[0] = nco_state;
@@ -243,7 +243,7 @@ void delayBlock(const std::vector<float>&input_block, std::vector<float>&state_b
 }
 
 void pointwiseMultiply(const std::vector<float>&block1,const std::vector<float>&block2,std::vector<float>&output){
-	output.clear();
+	//output.clear();
 	// if(block1.size()!=block2.size()){
 	// 	std::cout<<"size mismatch in multiply mixer"<<std::endl;
 	// 	std::cout<<"blk1 size: "<<block1.size()<<std::endl;		
@@ -257,7 +257,7 @@ void pointwiseMultiply(const std::vector<float>&block1,const std::vector<float>&
 	}
 }
 void pointwiseAdd(const std::vector<float>&block1,const std::vector<float>&block2,std::vector<float>&output){
-	output.clear();
+	//output.clear();
 	output.resize(block1.size());
 	// if(block1.size()!=block2.size()){
 	// 	std::cout<<"size mismatch in add mixer"<<std::endl;
@@ -269,7 +269,7 @@ void pointwiseAdd(const std::vector<float>&block1,const std::vector<float>&block
 	}
 }
 void pointwiseSubtract(const std::vector<float>&block1,const std::vector<float>&block2,std::vector<float>&output){
-	output.clear();
+	//output.clear();
 	output.resize(block1.size());
 	// if(block1.size()!=block2.size()){
 	// 	std::cout<<"size mismatch in subtract mixer"<<std::endl;
