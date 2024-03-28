@@ -27,6 +27,7 @@ struct RFState {
 	std::vector<float> q_state_rf;
 	float prev_I = 0;
 	float prev_Q = 0;
+	float prevPhase = 0;
 };
 
 struct AudioState {
@@ -73,6 +74,7 @@ void frontend(const float rf_decim, const std::vector<float> &rf_coeff, RFState 
 	
 	// use i and q data to obtain demodulated data
 	fmDemodArctan(i_downsampled, q_downsampled, rf_states.prev_I, rf_states.prev_Q, fm_demod);
+	fmDemodArctanOptimized(i_downsampled, q_downsampled, rf_states.prevPhase, fm_demod);
 
 	q.enqueue(fm_demod);
 }

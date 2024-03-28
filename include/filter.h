@@ -32,6 +32,7 @@ void pointwiseMultiply(const std::vector<float>&block1,const std::vector<float>&
 void pointwiseAdd(const std::vector<float>&block1,const std::vector<float>&block2,std::vector<float>&output);
 void pointwiseSubtract(const std::vector<float>&block1,const std::vector<float>&block2,std::vector<float>&output);
 void interleave(const std::vector<float>&left,const std::vector<float>&right,std::vector<float>&output);
+void fmDemodArctanOptimized(const std::vector<float> &I, const std::vector<float> &Q, float &prev_phase, std::vector<float>& fm_demod);
 
 
 #endif // DY4_FILTER_H

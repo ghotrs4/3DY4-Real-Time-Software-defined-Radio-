@@ -101,6 +101,30 @@ void fmDemodArctan(const std::vector<float> &I, const std::vector<float> &Q, flo
 	prev_Q = Q[Q.size()-1];
 }
 
+void fmDemodArctanOptimized(const std::vector<float> &I, const std::vector<float> &Q, float &prev_phase, std::vector<float>& fm_demod){
+	fm_demod.resize(I.size());
+	float current_phase;
+	float delta_phase;
+	for(int k=0;k<I.size();k++){
+		if(I[k]==0 && Q[k]==0){
+			current_phase=0;
+		}
+		else{
+			current_phase=std::atan2(Q[k], I[k]);
+		}
+		if(k>0){ //begin phase unwrap (python conversion)
+			delta_phase = current_phase - prev_phase;
+            if(delta_phase > PI) {
+                current_phase -= 2 * PI;
+            } else if (delta_phase < -PI) {
+                current_phase += 2 * PI;
+            }
+		}
+        fm_demod[k] = current_phase - prev_phase;
+        prev_phase = current_phase;
+	}
+}
+
 void downsample(const std::vector<float> data, size_t factor, std::vector<float>& downsampled) {
     // Iterate through the data and take every 'factor' element
 	downsampled.clear();
